@@ -7,3 +7,4 @@
 {"from":"babayaga","to":"caesar","value":1000,"data":""}
 {"from":"babayaga","to":"morteza","value":50,"data":""}
 {"from":"morteza","to":"morteza","value":100,"data":"reward"}
+{"from":"morteza","to":"morteza","value":100,"data":"reward"}

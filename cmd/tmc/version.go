@@ -21,8 +21,7 @@ var versionCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		// print versioning, on: tmc version
 		// returns a formatted string
-		fmt.Println(
-			fmt.Sprintf("Version: %s.%s.%s-beta %s", Major, Minor, Fix, Verbal))
+		fmt.Printf("Version: %s.%s.%s-beta %s", Major, Minor, Fix, Verbal)
 	},
 }
 
