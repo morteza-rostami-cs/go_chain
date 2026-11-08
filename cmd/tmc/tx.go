@@ -79,7 +79,8 @@ func txAddCmd() *cobra.Command {
 			}
 
 			// save transactions from mempool into disk
-			err = state.Persist()
+			// _ :: skip snapshot
+			_, err = state.Persist()
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				os.Exit(1)

@@ -6,11 +6,18 @@ import (
 	// print
 
 	"bufio"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os" // file and operating system
 	"path/filepath"
+
+	"crypto/sha256"
+	"io/ioutil"
 )
+
+// hash snapshot of our entire tx.db
+type Snapshot [32]byte // fixed size array
 
 //  current state of chain/database
 
@@ -20,6 +27,9 @@ type State struct{
 	txMempool []Tx // ???
 	// pointer to tx.db file
 	dbFile *os.File
+
+	// state snapshot
+	snapshot Snapshot
 }
 // methods
 func (self *State) Add(tx Tx) error {
@@ -35,7 +45,8 @@ func (self *State) Add(tx Tx) error {
 }
 
 // save transactions from txMempool into database/json file
-func (self *State) Persist() error {
+// after storing a new transaction also return the snapshot
+func (self *State) Persist() (Snapshot, error) {
 
 	// copy the mempool
 	mempool := make([]Tx, len(self.txMempool))
@@ -47,26 +58,38 @@ func (self *State) Persist() error {
 		//{"from":"Alice","to":"Bob","value":20}
 		txJson, err := json.Marshal(mempool[i])
 
-		if err != nil {return err}
+		if err != nil {return Snapshot{}, err}
 
 		// append a \n at the end of each transaction, so we have one per file inside our json file
 		// txJson is []byte
 		txJson = append(txJson, '\n')
 
+		fmt.Printf("Persisting new TX to disk:\n")
+		fmt.Printf("\t%s\n", txJson)
+
 		// write json bytes to the disk
 		if _, err = self.dbFile.Write( txJson ); err != nil {
-			return err // write to file failed
+			return Snapshot{}, err // write to file failed
 		}
+
+		// take a snapshot after each tx stored in tx.db
+		err = self.doSnapshot()
+		if err != nil {
+			return Snapshot{}, err
+		}
+
+		// print the snapshot hash
+		// fmt.Printf("new db snapshot: %x\n", self.snapshot)
 
 		// remove the persisted tx from state.txMempool
 		self.txMempool = self.txMempool[1:] // remove first item
-
 	}
-	return nil
+
+	return self.snapshot, nil
 }
 
 // close the file, we open this in NewStateFromDisk
-func (self *State) Close() { self.dbFile.Close() }
+func (self *State) Close() error { return self.dbFile.Close() }
 
 // update state.balances
 func (self *State) apply(tx Tx) error {
@@ -96,6 +119,39 @@ func (self *State) apply(tx Tx) error {
 	self.Balances[tx.To] += tx.Value
 
 	return nil// no error
+}
+
+// get snapshot
+func (self *State) LatestSnapshot() Snapshot {
+	return self.snapshot
+}
+
+// take a snapshot method (private)
+func (self *State) doSnapshot() error {
+	// re-read the tx.db file, from first byte
+	// move the file read/write pointer back to byte[0]
+	_, err := self.dbFile.Seek(0, 0)
+	if err != nil {return err}
+
+	// read all bytes (transactions)
+	txsData, err := ioutil.ReadAll(self.dbFile)
+	if err != nil {return err}
+
+	// txsData is a slice of bytes
+	// hash the entire tx.db file => all transaction lines 
+	self.snapshot = sha256.Sum256(txsData)
+
+	// fmt.Println("snapshot: ", self.snapshot)
+	// fmt.Printf("new db snapshot: %x\n", self.snapshot)
+	// [:] => converts array to slice
+	// it is unicode bytes, Dumb ass!
+	// fmt.Println(string(self.snapshot[:]))
+
+	fmt.Println("===\n")
+	fmt.Println("snapshot: ", hex.EncodeToString(self.snapshot[:]))
+	fmt.Println("===\n")
+
+	return nil
 }
 
 // create a new state, and return a pointer to it
@@ -160,6 +216,9 @@ func NewStateFromDisk() (*State, error) {
 		txMempool: make([]Tx, 0),
 		// file is open for other parts of program to use
 		dbFile: file,
+
+		// reset snapshot
+		snapshot: Snapshot{},// empty array of 32 bites 
 	}
 
 	// read or replay our existing transactions inside tx.db
@@ -184,6 +243,9 @@ func NewStateFromDisk() (*State, error) {
 	if err := scanner.Err(); err != nil {
 		return nil, err
 	}
+
+	// take a snapshot of the new state (hash)
+	err = state.doSnapshot()
 
 	return state, nil
 }

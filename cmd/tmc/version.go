@@ -8,10 +8,11 @@ import (
 
 // versioning info constants
 const Major = "0"
-const Minor = "1"
+const Minor = "3"
 const Fix = "0"
 // description of this release
-const Verbal = "TX Add && Balances List"
+// const Verbal = "TX Add && Balances List"
+const Verbal = "Immutable Snapshot"
 
 // a command should be a cobra.Command struct type
 

@@ -4,3 +4,6 @@ build:
 
 run: build
 	./bin/go_chain
+
+build-cmd:
+	go install ./cmd/tmc/...
