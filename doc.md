@@ -17,4 +17,37 @@ git switch -c lesson-01 origin/lesson-01
 git switch main
 git switch lesson-01
 
+#============
+
+# make a go module
+go mod init github.com/<your-github-username>/the-blockchain-bar
+
+mkdir -p cmd/tbb
+
+# install cobra
+go get github.com/spf13/cobra@latest
+go mod tidy # remove unused packages
+
+# build cobra commands, into:: $GOPATH/bin
+go install ./cmd/tmc/...
+
+## if tmc , did not work, do these::
+go env GOPATH
+/home/apax/go
+> go env GOBIN
+/home/apax/go/bin
+>
+
+ls /home/apax/go/bin/
+dlv  gopls  helloworld  tmc
+
+ls "$(go env GOPATH)/bin"
+dlv  gopls  helloworld  tmc
+
+
+# add Go bin dir to PATH
+echo 'export PATH="$PATH:$(go env GOPATH)/bin"' >> ~/.bashrc
+source ~/.bashrc
+#================= end:: fixing tmc
+
 ```
