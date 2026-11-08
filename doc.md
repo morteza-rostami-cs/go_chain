@@ -50,4 +50,11 @@ echo 'export PATH="$PATH:$(go env GOPATH)/bin"' >> ~/.bashrc
 source ~/.bashrc
 #================= end:: fixing tmc
 
+# rebuild cmd commands each time you change something in ./cmd/tmc
+go install ./cmd/tmc
+
+tmc tx add --from=babayaga --to=caesar --value=1000
+tmc tx add --from=babayaga --to=morteza --value=50
+tmc tx add --from=morteza --to=morteza --value=100 --data=reward
+
 ```

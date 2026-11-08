@@ -15,6 +15,7 @@ import (
 const flagFrom = "from"
 const flagTo = "to"
 const flagValue = "value"
+const flagData = "data"
 
 // tmc tx
 func txCmd() *cobra.Command {
@@ -50,13 +51,14 @@ func txAddCmd() *cobra.Command {
 			from, _ := cmd.Flags().GetString(flagFrom)
 			to, _ := cmd.Flags().GetString(flagTo)
 			value, _ := cmd.Flags().GetUint(flagValue)
+			data, _ := cmd.Flags().GetString(flagData)
 
 			// create a transaction
 			var tx = database.NewTx(
 				database.NewAccount(from),
 				database.NewAccount(to),
 				value,
-				"", // data, reward
+				data, // data = "reward"
 			)
 
 			// load the old state, then we add new transaction to mempool
@@ -96,6 +98,8 @@ func txAddCmd() *cobra.Command {
 
 	cmd.Flags().Uint(flagValue, 0, "How many tokens to send")
 	cmd.MarkFlagRequired(flagValue)
+	// optional flag
+	cmd.Flags().String(flagData, "", "Possible values: 'reward'")
 
 	return cmd
 }

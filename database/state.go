@@ -72,6 +72,7 @@ func (self *State) Close() { self.dbFile.Close() }
 func (self *State) apply(tx Tx) error {
 
 	// 1. reward transaction
+	// mints new tokens
 	if tx.IsReward() {// we create money on chain
 		// increment the receiver account, without decrementing from the sender. no transfer between accounts.
 		self.Balances[tx.To] += tx.Value
