@@ -47,7 +47,7 @@ var balancesListCmd = &cobra.Command{
 		// NewStateFromDisk() opens the tx.db file, so if who ever that calls it, also should defer close()		
 		defer state.Close()
 
-		fmt.Printf("txs snapshots: %x\n", state.LatestSnapshot())		
+		fmt.Printf("accounts balances at: %x\n", state.LatestBlockHash())		
 
 		fmt.Println("Accounts balances:")
 		fmt.Println("__________________")

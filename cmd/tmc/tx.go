@@ -71,7 +71,7 @@ func txAddCmd() *cobra.Command {
 			defer state.Close()
 
 			// apply new tx to state.Balances AND add tx to state.txtMempool
-			err = state.Add(tx)
+			err = state.AddTx(tx)
 			// here transaction can fail, for insufficient funds
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err)

@@ -100,6 +100,7 @@ func (self Block) Hash() (Hash, error){
 }
 
 // block file system, each block stored in json, block.db row
+// key => has to be outside of the block => cause hash the Block and not BlockFS!! we do not want to hash() to own block's Hash
 type BlockFS struct{
 	// hash identifying a block
 	// the last BlockFS.Key -- holds the hash for entire chain.

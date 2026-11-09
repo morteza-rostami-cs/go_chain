@@ -1,251 +1,207 @@
 package database
 
 import (
-	// read file line by line
-	// convert json
-	// print
-
 	"bufio"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"os" // file and operating system
+	"os"
 	"path/filepath"
-
-	"crypto/sha256"
-	"io/ioutil"
+	"time"
 )
-
-// hash snapshot of our entire tx.db
-type Snapshot [32]byte // fixed size array
-
-//  current state of chain/database
 
 type State struct{
 	Balances map[Account]uint
-	// excepted transactions that have not been persisted on disk/chain 
-	txMempool []Tx // ???
-	// pointer to tx.db file
+	txMempool []Tx
 	dbFile *os.File
-
-	// state snapshot
-	snapshot Snapshot
+	// hash of the last block in our chain, is the snapshot/hash of the chain
+	latestBlockHash Hash // <= 👈 snapshot
 }
-// methods
-func (self *State) Add(tx Tx) error {
-	// apply transaction to state.balances , update state.Balances(immediately)
-	// we apply each transaction to state.balances -- before we push it to mempool
-	if err := self.apply(tx); err != nil {
-		return err
-	}
+//methods
 
-	// push tx into mempool, to store it on disk later
-	self.txMempool = append(self.txMempool, tx)
+// get last block hash
+func (self *State) LatestBlockHash() Hash {
+	return self.latestBlockHash
+}
+
+
+//👺👺 AddBlock() and AddTx() => are used to update state.balances and mempool => after a new block/transactions patch
+
+// 👺👺 applyBlock() and apply() => are used to update state. after loading genesis.json and block.db -- there, we do not need to add transactions to mempool, we are just replaying the old transactions 
+
+// go over block.txs and call self.AddTs() for each tx in a block
+// tmcmigrate => calls :: AddBlock => for migrating old tx.db transactions
+func (self *State) AddBlock(b Block) error {
+	for _, tx := range b.TXs{
+		if err := self.AddTx(tx); err != nil{ return err }
+	}
 	return nil
 }
 
-// save transactions from txMempool into database/json file
-// after storing a new transaction also return the snapshot
-func (self *State) Persist() (Snapshot, error) {
+// apply each tx to state.Balances and push to txMempool
+// tmc tx add => calls:: AddTx()
+func (self *State) AddTx(tx Tx) error {
+	// apply to state.Balances
+	if err := self.apply(tx); err != nil { return err }
 
-	// copy the mempool
-	mempool := make([]Tx, len(self.txMempool))
-	copy(mempool, self.txMempool)
+	// push tx to end of mempool slice
+	self.txMempool = append(self.txMempool, tx)
 
-	// go over mempool
-	for i :=0; i < len(mempool); i++ {
-		// convert transaction into json
-		//{"from":"Alice","to":"Bob","value":20}
-		txJson, err := json.Marshal(mempool[i])
-
-		if err != nil {return Snapshot{}, err}
-
-		// append a \n at the end of each transaction, so we have one per file inside our json file
-		// txJson is []byte
-		txJson = append(txJson, '\n')
-
-		fmt.Printf("Persisting new TX to disk:\n")
-		fmt.Printf("\t%s\n", txJson)
-
-		// write json bytes to the disk
-		if _, err = self.dbFile.Write( txJson ); err != nil {
-			return Snapshot{}, err // write to file failed
-		}
-
-		// take a snapshot after each tx stored in tx.db
-		err = self.doSnapshot()
-		if err != nil {
-			return Snapshot{}, err
-		}
-
-		// print the snapshot hash
-		// fmt.Printf("new db snapshot: %x\n", self.snapshot)
-
-		// remove the persisted tx from state.txMempool
-		self.txMempool = self.txMempool[1:] // remove first item
-	}
-
-	return self.snapshot, nil
+	return nil
 }
 
-// close the file, we open this in NewStateFromDisk
-func (self *State) Close() error { return self.dbFile.Close() }
+// hash and store the last block
+// returns: Hash of the last block
+func (self *State) Persist() (Hash, error) {
+	// make a block, using state.latestBlockHash = which will be the parent of the new last block
+	newLastBlock := NewBlock(
+		self.latestBlockHash,
+		uint64(time.Now().Unix()), // unix time
+		self.txMempool,// store the entire available mempool in our new last block
+	)
 
-// update state.balances
+	// hash the new last block
+	blockHash, err := newLastBlock.Hash()
+	if err != nil { return Hash{}, nil }
+
+	// we build the wrapper blockFS, for block.db json storage
+	blockFs := BlockFS{
+		Key: blockHash,
+		Value: newLastBlock,
+	}
+
+	// struct to json []byte
+	blockFsJson, err := json.Marshal(blockFs)
+	if err != nil { return Hash{}, err }
+
+	fmt.Printf("persist new last block to disk: \n")
+	fmt.Printf("t%s\n", blockFsJson)
+
+	// new line for our blockFS json
+	blockFsJson = append(blockFsJson, '\n')
+
+	// write blockFsJson to block.db
+	if _, err := self.dbFile.Write(blockFsJson); err != nil{
+		return Hash{}, err
+	}
+
+	// store the newLastBlock.hash in state, we use this for persisting the next block, and use it as it's parent hash 
+	self.latestBlockHash = blockHash
+	// empty the mempool, ready for the next patch
+	self.txMempool = []Tx{}
+
+	return self.latestBlockHash, nil
+}
+
+func (self *State) Close() error {
+	return self.dbFile.Close()
+}
+
+// apply block.txs to state.Balances
+// call this for replay of transactions, when we read from block.db
+func (self *State) applyBlock(b Block) error {
+	for _, tx := range b.TXs {
+		// apply each tx
+		if err := self.apply(tx); err != nil { return err }
+	}
+	return nil
+}
+
+// actual apply() logic, reward tx and normal tx
+// apply a tx => to state.Balances
 func (self *State) apply(tx Tx) error {
 
-	// 1. reward transaction
-	// mints new tokens
-	if tx.IsReward() {// we create money on chain
-		// increment the receiver account, without decrementing from the sender. no transfer between accounts.
+	// tx: reward
+	if tx.IsReward(){
 		self.Balances[tx.To] += tx.Value
 		return nil
 	}
 
-	// 2. normal transaction
-	
-	// check if sender has enough fund
-	// // uint -> does not give negative -- so it wraps into some big positive -- therefore i use < and not subtraction -
-	// if self.Balances[tx.From] - tx.Value < 0 {
-	// 	return fmt.Errorf("insufficient balance.")
-	// }
-
 	if self.Balances[tx.From] < tx.Value {
-		return fmt.Errorf("insufficient balance")
+		return fmt.Errorf("insufficient balance")	
 	}
 
-	// subtract from the sender and add to receiver
-	self.Balances[tx.From] -= tx.Value	
+	// tx: normal
+	self.Balances[tx.From] -= tx.Value
 	self.Balances[tx.To] += tx.Value
-
-	return nil// no error
-}
-
-// get snapshot
-func (self *State) LatestSnapshot() Snapshot {
-	return self.snapshot
-}
-
-// take a snapshot method (private)
-func (self *State) doSnapshot() error {
-	// re-read the tx.db file, from first byte
-	// move the file read/write pointer back to byte[0]
-	_, err := self.dbFile.Seek(0, 0)
-	if err != nil {return err}
-
-	// read all bytes (transactions)
-	txsData, err := ioutil.ReadAll(self.dbFile)
-	if err != nil {return err}
-
-	// txsData is a slice of bytes
-	// hash the entire tx.db file => all transaction lines 
-	self.snapshot = sha256.Sum256(txsData)
-
-	// fmt.Println("snapshot: ", self.snapshot)
-	// fmt.Printf("new db snapshot: %x\n", self.snapshot)
-	// [:] => converts array to slice
-	// it is unicode bytes, Dumb ass!
-	// fmt.Println(string(self.snapshot[:]))
-
-	fmt.Println("===\n")
-	fmt.Println("snapshot: ", hex.EncodeToString(self.snapshot[:]))
-	fmt.Println("===\n")
 
 	return nil
 }
 
-// create a new state, and return a pointer to it
-/*
-- load initial balances from genesis.json 
-- AND open tx.db (keep it open)
-- init the chain state
-- read lines from tx.db, apply each transaction into state.Balances
-- return a pointer to the new state instance
-*/
+// load genesis.json
+// read transactions from block.db
 func NewStateFromDisk() (*State, error) {
-	
-	// get the path to current root directory
-	cwd, err := os.Getwd() // /home/apax/__unfuck/go_chain
-	if err != nil {
-		return nil, err
-	}
 
-	// fmt.Println(cwd)
+	cwd, err := os.Getwd()// path to root dir
+	if err != nil {return nil, err}// nill for *pointer
 
-	// load genesis file
-	// filepath.Join(), /home/user/myproject/database/genesis.json
-	gen, err := LoadGenesis(filepath.Join(cwd, "database", "genesis.json"))
-	if err != nil {
-		return nil, err
-	}
+	// load the genesis.json
+	var genesisPath = filepath.Join(cwd, "database", "genesis.json")
+	gen, err := LoadGenesis(genesisPath)
+	if err != nil { return nil, err }
 
-	// gen.Balances -- has the initial state of our database/chain
+	// gen.Balances -> map
 
-	// balances for doing our calculations
-	var balances = make(map[Account]uint)
+	var balances = make(map[Account]uint)// get all balances here
 
-	// get the initial balances
+	// get init balances from genesis
 	for account, balance := range gen.Balances {
 		balances[account] = balance
 	}
 
-	// open our db file
-	// file must exist!!
-	file, err := os.OpenFile(
-		filepath.Join(cwd, "database", "tx.db"),// path
-		// os.O_APPEND :: append to the end of the file
-		// os.O_RDWR :: open file for read and write
-		// | :: combines these flags 
-		os.O_APPEND | os.O_RDWR,
-		// permission: only file owner can read and write
-		0600,
-	)
-	if err != nil {
-		return nil, err
-	}
+	// open block.db
+	// file, err => as long as left side is a new variable, the right err -> just reassigns the previously declared err.
+	var blockDbPath = filepath.Join(cwd, "database", "block.db")
+	dbFile, err := os.OpenFile(
+		blockDbPath,// path 
+		// flags:: O_CREATE :: create the file if does not exists.
+		os.O_APPEND|os.O_RDWR|os.O_CREATE, 
+		0600)
 
-	// scanner buffer for reading text, line by line
-	scanner := bufio.NewScanner(file)// pass file for buffering
+	if err != nil { return nil, err }
 
-	// each line in this file, represent one single transaction
+	// scanner for reading bytes, one line for each block
+	scanner := bufio.NewScanner(dbFile)
 
-	// create new state
+	// pointer to empty state
 	state := &State{
-		Balances: balances,
-		// init with a empty slice of tx
-		txMempool: make([]Tx, 0),
-		// file is open for other parts of program to use
-		dbFile: file,
-
-		// reset snapshot
-		snapshot: Snapshot{},// empty array of 32 bites 
+		Balances: balances,// gen.Balances
+		txMempool: make([]Tx, 0),// empty slice, not nil		
+		dbFile: dbFile,// pointer to db file
+		latestBlockHash: Hash{},// empty hash
 	}
 
-	// read or replay our existing transactions inside tx.db
-	for scanner.Scan() {// read until, not line left
-		
-		// get each transaction
-		var tx Tx // struct for each transaction
-		// Unmarshal() -- decode json bytes 
-		err := json.Unmarshal(
-			scanner.Bytes(), // buffered bytes for each line
-			&tx, // pointer to tx struct
-		)
-		if err != nil {return nil, err}
+	// loop each block line inside block.db
+	for scanner.Scan() {
+		// check scanning error
+		if err := scanner.Err(); err != nil { return nil, err }
 
-		// apply transaction to state.balances for each account
-		if err := state.apply(tx); err != nil {
+		// get json bytes/objects that are => BlockFS 
+		/*
+		{
+		key: 2342323,
+		value: {
+			header: {},
+			payload: [tx, tx],
+		}
+		}
+		*/ 
+		blockFsJson := scanner.Bytes()
+
+		var blockFs BlockFS
+		// json bytes => *struct
+		if err := json.Unmarshal(blockFsJson, &blockFs); err != nil{
 			return nil, err
 		}
-	}
 
-	// check for scanner errors
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
+		// apply block => state.Balances map
+		// blockFs.Value => Block
+		if err := state.applyBlock(blockFs.Value); err != nil {
+			return nil, err
+		}
 
-	// take a snapshot of the new state (hash)
-	err = state.doSnapshot()
+		// at the last loop we get the key/hash of the last block, and store it as our snapshot or the whole chain
+		state.latestBlockHash = blockFs.Key
+	}
 
 	return state, nil
 }

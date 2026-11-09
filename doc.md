@@ -57,4 +57,8 @@ tmc tx add --from=babayaga --to=caesar --value=1000
 tmc tx add --from=babayaga --to=morteza --value=50
 tmc tx add --from=morteza --to=morteza --value=100 --data=reward
 
+# =============
+# seed block.db
+go run ./cmd/tmc/tmcmigrate/main.go
+
 ```
