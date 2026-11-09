@@ -4,14 +4,16 @@ import (
 	"fmt"
 	"go_chain/database"
 	"os"
+	"path/filepath"
 	"time"
 )
 
 // we seed some transactions and blocks
 
 func main() {
+	cwd, _ := os.Getwd()// root dir
 	// replay and load the state
-	state, err := database.NewStateFromDisk()
+	state, err := database.NewStateFromDisk(filepath.Join(cwd, "data"))
 	if err != nil { 
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

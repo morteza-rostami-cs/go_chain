@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 )
 
@@ -16,7 +15,7 @@ type State struct{
 	// hash of the last block in our chain, is the snapshot/hash of the chain
 	latestBlockHash Hash // <= 👈 snapshot
 }
-//methods
+//State methods
 
 // get last block hash
 func (self *State) LatestBlockHash() Hash {
@@ -129,14 +128,20 @@ func (self *State) apply(tx Tx) error {
 
 // load genesis.json
 // read transactions from block.db
-func NewStateFromDisk() (*State, error) {
+// take root dir path
+func NewStateFromDisk(dataDir string) (*State, error) {
 
-	cwd, err := os.Getwd()// path to root dir
-	if err != nil {return nil, err}// nill for *pointer
+	// create /data if does not exist
+	// create:: /data /data/genesis.json and /data/block.db
+	err := initDataDirIfNotExists(dataDir)
+	if err != nil { return nil, err }
+
+	// cwd, err := os.Getwd()// path to root dir
+	// if err != nil {return nil, err}// nill for *pointer
 
 	// load the genesis.json
-	var genesisPath = filepath.Join(cwd, "database", "genesis.json")
-	gen, err := LoadGenesis(genesisPath)
+	// var genesisPath = filepath.Join(cwd, "data", "genesis.json")
+	gen, err := LoadGenesis(getGenesisJsonFilePath(dataDir))
 	if err != nil { return nil, err }
 
 	// gen.Balances -> map
@@ -150,9 +155,10 @@ func NewStateFromDisk() (*State, error) {
 
 	// open block.db
 	// file, err => as long as left side is a new variable, the right err -> just reassigns the previously declared err.
-	var blockDbPath = filepath.Join(cwd, "database", "block.db")
+	// var blockDbPath = filepath.Join(cwd, "data", "block.db")
 	dbFile, err := os.OpenFile(
-		blockDbPath,// path 
+		// blockDbPath,// path 
+		getBlocksDbFilePath(dataDir),
 		// flags:: O_CREATE :: create the file if does not exists.
 		os.O_APPEND|os.O_RDWR|os.O_CREATE, 
 		0600)

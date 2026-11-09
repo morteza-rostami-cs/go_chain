@@ -27,35 +27,48 @@ func balancesCmd() *cobra.Command {
 	}
 
 	// register a child command
-	cmd.AddCommand(balancesListCmd)
+	cmd.AddCommand(balancesListCmd())
 
 	return cmd
 }
 
-var balancesListCmd = &cobra.Command{
-	Use: "list",
-	Short: "List all balances.",
-	// runs on: tmc balances list
-	Run: func (cmd *cobra.Command, args []string) {
-		// replay the transactions in tx.db and get the updated state.Balances
-		state, err := database.NewStateFromDisk()
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
 
-		// NewStateFromDisk() opens the tx.db file, so if who ever that calls it, also should defer close()		
-		defer state.Close()
+func balancesListCmd() *cobra.Command {
 
-		fmt.Printf("accounts balances at: %x\n", state.LatestBlockHash())		
+	var cmd = &cobra.Command{
+		Use: "list",
+		Short: "List all balances.",
+		// runs on: tmc balances list
+		Run: func (cmd *cobra.Command, args []string) {
 
-		fmt.Println("Accounts balances:")
-		fmt.Println("__________________")
-		fmt.Println("")
+			// get the --dataDir flag
+			dataDir, _ := cmd.Flags().GetString(flagDataDir)
 
-		// state.Balances :: map[Account]uint		
-		for account, balance := range state.Balances {
-			fmt.Printf("%s: %d\n", account, balance)
-		}		
-	},
+			// replay the blocks in block.db and get the updated state.Balances, pass the dataDir name from command line flag value --flagDir=/data
+			state, err := database.NewStateFromDisk(dataDir)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
+	
+			// NewStateFromDisk() opens the tx.db file, so if who ever that calls it, also should defer close()		
+			defer state.Close()
+	
+			fmt.Printf("accounts balances at: %x\n", state.LatestBlockHash())		
+	
+			fmt.Println("Accounts balances:")
+			fmt.Println("__________________")
+			fmt.Println("")
+	
+			// state.Balances :: map[Account]uint		
+			for account, balance := range state.Balances {
+				fmt.Printf("%s: %d\n", account, balance)
+			}		
+		},
+	}
+
+	// setup the --dataDir= flag for list command
+	addDefaultRequiredFlags(cmd)
+
+	return cmd
 }

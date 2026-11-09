@@ -61,4 +61,10 @@ tmc tx add --from=morteza --to=morteza --value=100 --data=reward
 # seed block.db
 go run ./cmd/tmc/tmcmigrate/main.go
 
+# define any pass and it creates , genesis.json and block.db
+tmc balances list --datadir=./data
+
+# if needed later, move the /data folder outside of project folder
+tbb balances list --datadir=$HOME/data
+
 ```

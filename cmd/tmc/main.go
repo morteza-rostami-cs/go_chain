@@ -7,6 +7,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// flag for passing the /data dir in commands
+const flagDataDir = "datadir"
+
 func main() {
 	// root command line command
 	//tmc version
@@ -35,6 +38,16 @@ func main() {
 		// 1 means error
 		os.Exit(1)
 	}
+}
+
+// add --dataDir flag to any command
+func addDefaultRequiredFlags(cmd *cobra.Command){
+	cmd.Flags().String(
+		flagDataDir,
+		"",
+		"Absolute path to the node data dir where the DB will/is stored",
+	)
+	cmd.MarkFlagRequired(flagDataDir)// flag is required
 }
 
 func incorrectUsageErr() error {

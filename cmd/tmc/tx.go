@@ -53,6 +53,8 @@ func txAddCmd() *cobra.Command {
 			value, _ := cmd.Flags().GetUint(flagValue)
 			data, _ := cmd.Flags().GetString(flagData)
 
+			dataDir, _ := cmd.Flags().GetString(flagDataDir)
+
 			// create a transaction
 			var tx = database.NewTx(
 				database.NewAccount(from),
@@ -62,7 +64,7 @@ func txAddCmd() *cobra.Command {
 			)
 
 			// load the old state, then we add new transaction to mempool
-			state, err := database.NewStateFromDisk()
+			state, err := database.NewStateFromDisk(dataDir)
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				os.Exit(1)
@@ -91,6 +93,9 @@ func txAddCmd() *cobra.Command {
 	}
 
 	// register command flags
+
+	addDefaultRequiredFlags(cmd)// attach --datadir
+
 	cmd.Flags().String(flagFrom, "", "From what account to send tokens")
 	cmd.MarkFlagRequired(flagFrom)// flag is required
 
