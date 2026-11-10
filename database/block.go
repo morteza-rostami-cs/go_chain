@@ -65,9 +65,13 @@ func (self *Hash) UnmarshalText(data []byte) error {
 */ 
 
 // Hash(Block 0) -- we use the whole content of a block to create it's hash.
+// struct layout and order of fields => effects the hash of each block.
 type BlockHeader struct{
 	// previous block's hash
 	Parent Hash `json:"parent"`
+	// block_number or Height: block number for p2p features
+	// tells us which node is longer.
+	Number uint64 `json:"number"` // 8 bytes
 	//Unix timestamps, block created at
 	Time	uint64 `json:"time"`
 }
@@ -110,9 +114,9 @@ type BlockFS struct{
 }
 
 // block constructor function
-func NewBlock(parent Hash, time uint64, txs []Tx) Block {
+func NewBlock(parent Hash, number uint64, time uint64, txs []Tx) Block {
 	return Block{
-		BlockHeader{parent, time},
+		BlockHeader{parent, number, time},
 		txs,
 	}
 }

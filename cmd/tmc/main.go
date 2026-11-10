@@ -30,6 +30,7 @@ func main() {
 	tmcCmd.AddCommand(balancesCmd()) // tmc balances
 	// tmcCmd.AddCommand(txCmd())// tmc tx
 	tmcCmd.AddCommand(runCmd())// start node command
+	tmcCmd.AddCommand(migrateCmd)
 
 	err := tmcCmd.Execute()// read command and execute the corresponding operation 
 	if err != nil {

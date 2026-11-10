@@ -12,6 +12,9 @@ type State struct{
 	Balances map[Account]uint
 	txMempool []Tx
 	dbFile *os.File
+	// store the whole last block, cause we need it to do: Block.Number + 1, when creating a new block
+	latestBlock *Block
+
 	// hash of the last block in our chain, is the snapshot/hash of the chain
 	latestBlockHash Hash // <= 👈 snapshot
 }
@@ -22,6 +25,9 @@ func (self *State) LatestBlockHash() Hash {
 	return self.latestBlockHash
 }
 
+func (self *State) LatestBlock() *Block {
+	return self.latestBlock
+}
 
 //👺👺 AddBlock() and AddTx() => are used to update state.balances and mempool => after a new block/transactions patch
 
@@ -52,8 +58,22 @@ func (self *State) AddTx(tx Tx) error {
 // returns: Hash of the last block
 func (self *State) Persist() (Hash, error) {
 	// make a block, using state.latestBlockHash = which will be the parent of the new last block
+
+	fmt.Println(self.latestBlock)
+	
+	var blockNumber = uint64(0)// zero for genesis block
+	// genesis block, when NewStateFromDisk() finds nothing in block.db => sets state.latestBlock = nil
+	if self.latestBlock != nil {
+		fmt.Println(self.latestBlock.Header.Number)
+		// after we have one block, increment
+		blockNumber = self.latestBlock.Header.Number + 1 
+	}
+	
 	newLastBlock := NewBlock(
 		self.latestBlockHash,
+		// Number:: increment block number
+		// self.latestBlock.Header.Number + 1,
+		blockNumber,
 		uint64(time.Now().Unix()), // unix time
 		self.txMempool,// store the entire available mempool in our new last block
 	)
@@ -82,6 +102,9 @@ func (self *State) Persist() (Hash, error) {
 	if _, err := self.dbFile.Write(blockFsJson); err != nil{
 		return Hash{}, err
 	}
+
+	// set latest block, so it is not nil for the next persist
+	self.latestBlock = &newLastBlock
 
 	// store the newLastBlock.hash in state, we use this for persisting the next block, and use it as it's parent hash 
 	self.latestBlockHash = blockHash
@@ -131,6 +154,8 @@ func (self *State) apply(tx Tx) error {
 // take root dir path
 func NewStateFromDisk(dataDir string) (*State, error) {
 
+	// dataDir = ExpandPath(dataDir)
+
 	// create /data if does not exist
 	// create:: /data /data/genesis.json and /data/block.db
 	err := initDataDirIfNotExists(dataDir)
@@ -173,6 +198,11 @@ func NewStateFromDisk(dataDir string) (*State, error) {
 		Balances: balances,// gen.Balances
 		txMempool: make([]Tx, 0),// empty slice, not nil		
 		dbFile: dbFile,// pointer to db file
+
+		// book:: wants this
+		// latestBlock: Block{},
+		// nil:: so i can check the genesis block in Persist
+		latestBlock: nil,
 		latestBlockHash: Hash{},// empty hash
 	}
 
@@ -193,6 +223,9 @@ func NewStateFromDisk(dataDir string) (*State, error) {
 		*/ 
 		blockFsJson := scanner.Bytes()
 
+		// skip empty lines
+		if len(blockFsJson) == 0 { break }
+
 		var blockFs BlockFS
 		// json bytes => *struct
 		if err := json.Unmarshal(blockFsJson, &blockFs); err != nil{
@@ -204,6 +237,11 @@ func NewStateFromDisk(dataDir string) (*State, error) {
 		if err := state.applyBlock(blockFs.Value); err != nil {
 			return nil, err
 		}
+
+		// book wants this::
+		//state.latestBlock = blockFs.Value
+
+		state.latestBlock = &blockFs.Value// set last block in state
 
 		// at the last loop we get the key/hash of the last block, and store it as our snapshot or the whole chain
 		state.latestBlockHash = blockFs.Key
