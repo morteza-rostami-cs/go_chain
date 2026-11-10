@@ -67,4 +67,12 @@ tmc balances list --datadir=./data
 # if needed later, move the /data folder outside of project folder
 tbb balances list --datadir=$HOME/data
 
+#============
+# http routes
+curl -s -X GET http://localhost:8081/balances/list
+
+curl -s -X POST http://localhost:8081/tx/add \
+  -H "Content-Type: application/json" \
+  -d '{"from":"morteza","to":"babayaga","value":100}'
+
 ```

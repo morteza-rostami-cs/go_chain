@@ -28,7 +28,8 @@ func main() {
 	// AddCommand takes a cobra.Command type
 	tmcCmd.AddCommand(versionCmd)// tmc version
 	tmcCmd.AddCommand(balancesCmd()) // tmc balances
-	tmcCmd.AddCommand(txCmd())// tmc tx
+	// tmcCmd.AddCommand(txCmd())// tmc tx
+	tmcCmd.AddCommand(runCmd())// start node command
 
 	err := tmcCmd.Execute()// read command and execute the corresponding operation 
 	if err != nil {

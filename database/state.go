@@ -116,7 +116,7 @@ func (self *State) apply(tx Tx) error {
 	}
 
 	if self.Balances[tx.From] < tx.Value {
-		return fmt.Errorf("insufficient balance")	
+		return fmt.Errorf("insufficient balance\n")	
 	}
 
 	// tx: normal

@@ -8,13 +8,14 @@ import (
 
 // versioning info constants
 const Major = "0"
-const Minor = "5"
+const Minor = "6"
 const Fix = "0"
 // description of this release
 // const Verbal = "TX Add && Balances List"
 // const Verbal = "Immutable Snapshot"
 // const Verbal = "Blockchain"
-const Verbal = "Flexible DataDir"
+// const Verbal = "Flexible DataDir"
+const Verbal = "HTTP API"
 
 // a command should be a cobra.Command struct type
 
