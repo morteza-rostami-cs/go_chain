@@ -9,6 +9,8 @@ import (
 
 // flag for passing the /data dir in commands
 const flagDataDir = "datadir"
+// we should pass --port for running each node
+const flagPort = "port"
 
 func main() {
 	// root command line command

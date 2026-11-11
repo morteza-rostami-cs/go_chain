@@ -17,10 +17,23 @@ func runCmd() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string){
 			// get dataDir flag
 			dataDir, _ := cmd.Flags().GetString(flagDataDir)
+			port, _ := cmd.Flags().GetUint64(flagPort)
+			
 			fmt.Println("Launching TMC node and its http api.")
 
+			// create one bootstrap node
+			bootstrap := node.NewPeerNode(
+				"127.0.0.1",
+				port + 1,// for now: node.port + 1 
+				true,// is_bootstrap
+				true,// is_active
+			)
+
+			// create our node
+			n := node.New(dataDir, port, bootstrap)
+
 			// run our node server
-			err := node.Run(dataDir)
+			err := n.Run()
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
@@ -30,5 +43,13 @@ func runCmd() *cobra.Command {
 
 	// register --datadir flag
 	addDefaultRequiredFlags(runCmd)
+
+	// register port command
+	runCmd.Flags().Uint64(
+		flagPort,
+		node.DefaultHttpPort,// default port
+		"exposed HTTP port for communication with peers.",
+	)
+
 	return runCmd
 }

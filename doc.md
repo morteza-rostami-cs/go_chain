@@ -86,4 +86,8 @@ tmc balances list --datadir='$HOME/tmc-test/../tmc-test'
 # inside project/data
 tmc balances list --datadir=./data
 
+# run another node with port
+tmc run --datadir=$HOME/.tmc-node2 --port=8082
+
+
 ```
