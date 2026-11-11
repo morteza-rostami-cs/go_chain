@@ -38,9 +38,20 @@ type TxAddRes struct{
 	Hash database.Hash `json:"block_hash"`
 }
 
+// Get /node/status
+// returns: latestBlock.hash and number
+// hash:: tells nodes if they have both height=8, do they also agree on chain state (latestBlock.hash)
+type StatusRes struct{
+	// two nodes, can check this as latest chain state, see if their state matches
+	Hash	database.Hash `json:"block_hash"`
+	// nodes can check the height, to see if they are behind.
+	Number	uint64 `json:"block_number"`
+}
+
 // http server
 func Run(dataDir string) error {
 	// replay the blocks and set the state.Balances and also create /data files, if they do not exist
+	// node, replays blocks/transactions, only once (on start up)
 	state, err := database.NewStateFromDisk(dataDir)
 	if err != nil { return err }
 
@@ -62,6 +73,14 @@ func Run(dataDir string) error {
 		"/tx/add",
 		func(res http.ResponseWriter, req *http.Request) {
 			txAddHandler(res, req, state)
+		},
+	)
+
+	// GET /node/status
+	http.HandleFunc(
+		"/node/status",
+		func(res http.ResponseWriter, req *http.Request){
+			statusHandler(res, req, state)
 		},
 	)
 
@@ -118,6 +137,24 @@ func txAddHandler(res http.ResponseWriter, req *http.Request, state *database.St
 	// final response, convert to json and send http response
 	writeRes(res, TxAddRes{hash})
 }
+
+func statusHandler(res http.ResponseWriter, req *http.Request, state *database.State){
+	var blockNumber uint64 = 0// if there is not block yet
+
+	// check for the latest block, because: if block.db is empty, then: sate.LatestBlock() returns: nil
+	if lb := state.LatestBlock(); lb != nil {
+		blockNumber = lb.Header.Number
+	} 
+
+	response := StatusRes{
+		Hash: state.LatestBlockHash(),
+		Number: blockNumber,		
+	}
+
+	writeRes(res, response)
+}
+
+//=====end handlers===========
 
 // sending err responses
 func writeErrRes(res http.ResponseWriter, err error) {

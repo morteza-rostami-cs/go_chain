@@ -7,3 +7,6 @@ run: build
 
 build-cmd:
 	go install ./cmd/tmc/...
+
+run-node:
+	tmc run --datadir=./data
