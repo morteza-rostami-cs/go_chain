@@ -75,4 +75,15 @@ curl -s -X POST http://localhost:8081/tx/add \
   -H "Content-Type: application/json" \
   -d '{"from":"morteza","to":"babayaga","value":100}'
 
+# ===
+# we can run command like this: and create our data in HOME
+# use single quote, around path
+tmc balances list --datadir='~/tmc-test'
+tmc balances list --datadir='$HOME/tmc-test'
+# path cleaning also works, /home/user/tbb-test
+tmc balances list --datadir='$HOME/tmc-test/../tmc-test'
+
+# inside project/data
+tmc balances list --datadir=./data
+
 ```

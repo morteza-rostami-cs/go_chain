@@ -59,7 +59,7 @@ func (self *State) AddTx(tx Tx) error {
 func (self *State) Persist() (Hash, error) {
 	// make a block, using state.latestBlockHash = which will be the parent of the new last block
 
-	fmt.Println(self.latestBlock)
+	// fmt.Println(self.latestBlock)
 	
 	var blockNumber = uint64(0)// zero for genesis block
 	// genesis block, when NewStateFromDisk() finds nothing in block.db => sets state.latestBlock = nil
@@ -154,7 +154,7 @@ func (self *State) apply(tx Tx) error {
 // take root dir path
 func NewStateFromDisk(dataDir string) (*State, error) {
 
-	// dataDir = ExpandPath(dataDir)
+	dataDir = ExpandPath(dataDir)// handle ~/
 
 	// create /data if does not exist
 	// create:: /data /data/genesis.json and /data/block.db
