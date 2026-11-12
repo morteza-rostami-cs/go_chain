@@ -8,7 +8,7 @@ import (
 )
 
 // we call this to get status and peers from other nodes, specially bootstrap_node
-const endpointStatus = "/node/status"
+// const endpointStatus = "/node/status"
 
 // go routine loop for, periodic sync
 func (self *Node) sync(ctx context.Context) error {

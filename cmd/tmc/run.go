@@ -16,7 +16,8 @@ func runCmd() *cobra.Command {
 		Short: "Launches the TMC node and its HTTP api.",
 		Run: func(cmd *cobra.Command, args []string){
 			// get dataDir flag
-			dataDir, _ := cmd.Flags().GetString(flagDataDir)
+			// dataDir, _ := cmd.Flags().GetString(flagDataDir)
+
 			port, _ := cmd.Flags().GetUint64(flagPort)
 			
 			fmt.Println("Launching TMC node and its http api.")
@@ -33,7 +34,7 @@ func runCmd() *cobra.Command {
 			)
 
 			// create our node
-			n := node.New(dataDir, port, bootstrap)
+			n := node.New(getDataDirFromCmd(cmd), port, bootstrap)
 
 			// run our node server
 			err := n.Run()

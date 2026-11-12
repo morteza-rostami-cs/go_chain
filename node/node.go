@@ -12,6 +12,10 @@ import (
 // http port
 const DefaultHttpPort = 8081
 
+const endpointStatus = "/node/status"
+const endpointSync = "/node/sync"
+const endpointSyncQueryKeyFromBlock = "fromBlock"
+
 // peer nodes, nodes our node knows about
 /*
 ip and port => to reach the node
@@ -109,7 +113,7 @@ func (self *Node) Run() error {
 
 	// GET /node/status
 	http.HandleFunc(
-		"/node/status",
+		endpointStatus,
 		func(res http.ResponseWriter, req *http.Request){
 			// pass the entire node
 			statusHandler(res, req, self)
@@ -121,6 +125,14 @@ func (self *Node) Run() error {
 		"/node/register",
 		func(res http.ResponseWriter, req *http.Request) {
 			registerPeerHandler(res, req, self)
+		},
+	)
+
+	// Get /node/sync
+	http.HandleFunc(
+		endpointSync,
+		func(res http.ResponseWriter, req *http.Request) {
+			syncHandler(res, req, self.dataDir)
 		},
 	)
 	

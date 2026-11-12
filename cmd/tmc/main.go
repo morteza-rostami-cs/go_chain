@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	// "io/fs"
+	"go_chain/fs"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -57,4 +59,9 @@ func addDefaultRequiredFlags(cmd *cobra.Command){
 func incorrectUsageErr() error {
 	// returns error type
 	return fmt.Errorf("incorrect usage")
+}
+
+func getDataDirFromCmd(cmd *cobra.Command) string {
+	dataDir, _ := cmd.Flags().GetString(flagDataDir)
+	return fs.ExpandPath(dataDir)
 }

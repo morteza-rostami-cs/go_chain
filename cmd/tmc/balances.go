@@ -42,10 +42,10 @@ func balancesListCmd() *cobra.Command {
 		Run: func (cmd *cobra.Command, args []string) {
 
 			// get the --dataDir flag
-			dataDir, _ := cmd.Flags().GetString(flagDataDir)
+			// dataDir, _ := cmd.Flags().GetString(flagDataDir)
 
 			// replay the blocks in block.db and get the updated state.Balances, pass the dataDir name from command line flag value --flagDir=/data
-			state, err := database.NewStateFromDisk(dataDir)
+			state, err := database.NewStateFromDisk(getDataDirFromCmd(cmd))
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				os.Exit(1)

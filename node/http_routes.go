@@ -50,7 +50,12 @@ type StatusRes struct{
 }
 
 type  RegisterPeerRes struct{
-	Message	string
+	Message	string `json:"message"`
+}
+
+// /node/sync?hash=sdfsdf
+type SyncRes struct{
+	Blocks []database.Block `json:"blocks"`
 }
 
 // http handlers
@@ -139,6 +144,33 @@ func registerPeerHandler(
 	self.knownPeers[peer.TcpAddress()] = peer
 
 	writeRes(res, RegisterPeerRes{Message: "peer registered"})
+}
+
+// /node/sync
+func syncHandler(
+	res http.ResponseWriter, 
+	req *http.Request, 
+	dataDir string,
+) {
+	// get the hash, from: url ?fromHash=sdfdss -- query_parameter
+	reqHash := req.URL.Query().Get(endpointSyncQueryKeyFromBlock)
+
+	var hash = database.Hash{}
+	// string to bytes to Hash 32
+	err := hash.UnmarshalText([]byte(reqHash))
+	if err != nil {
+		writeErrRes(res, err)
+		return
+	}
+
+	// get all the blocks after block.hash
+	blocks, err := database.GetBlocksAfter(hash, dataDir)
+	if err != nil {
+		writeErrRes(res, err)
+		return
+	}
+
+	writeRes(res, SyncRes{Blocks: blocks})
 }
 
 //=====end handlers===========

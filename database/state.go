@@ -4,6 +4,9 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+
+	// "io/fs"
+	"go_chain/fs"
 	"os"
 	"time"
 )
@@ -154,7 +157,7 @@ func (self *State) apply(tx Tx) error {
 // take root dir path
 func NewStateFromDisk(dataDir string) (*State, error) {
 
-	dataDir = ExpandPath(dataDir)// handle ~/
+	dataDir = fs.ExpandPath(dataDir)// handle ~/
 
 	// create /data if does not exist
 	// create:: /data /data/genesis.json and /data/block.db
