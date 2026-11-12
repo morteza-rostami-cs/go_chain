@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"go_chain/database"
 	"net/http"
+	"time"
 )
 
 // http error response
@@ -68,7 +69,11 @@ func listBalancesHandler(res http.ResponseWriter, req *http.Request, state *data
 	)
 }
 
-func txAddHandler(res http.ResponseWriter, req *http.Request, state *database.State){
+func txAddHandler(
+	res http.ResponseWriter, 
+	req *http.Request, 
+	state *database.State,
+){
 	// empty request
 	request := TxAddReq{}
 	// read req from json data
@@ -88,15 +93,18 @@ func txAddHandler(res http.ResponseWriter, req *http.Request, state *database.St
 		request.Data,
 	)
 
-	// updates :: state.Balances and adds tx to mempool
-	err = state.AddTx(tx)
-	if err != nil {
-		writeErrRes(res, err)
-		return
-	}
+	// make a new block
+	var block = database.NewBlock(
+		state.LatestBlockHash(),// parent
+		state.NextBlockNumber(), // number
+		uint64(time.Now().Unix()), // time
 
-	// persist:: for now we immediately batch txs from mempool into a block and store in block.db (later we change this!!)
-	hash, err := state.Persist()
+		// pass our tx into block
+		[]database.Tx{tx}, // txs
+	) 
+
+	// applies to state.Balances and also persists in block.db
+	hash, err := state.AddBlock(block)
 	if err != nil {
 		writeErrRes(res, err)
 		return

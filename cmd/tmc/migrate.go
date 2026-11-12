@@ -25,14 +25,9 @@ var migrateCmd = func() *cobra.Command {
 			}
 			defer state.Close()
 
-			var blockNumber = uint64(0)
-			if state.LatestBlock() != nil {
-				blockNumber = state.LatestBlock().Header.Number + 1
-			}
-
 			block0 := database.NewBlock(
 				database.Hash{},// hash
-				blockNumber, // Header.Number
+				state.NextBlockNumber(), // Header.Number
 				uint64(time.Now().Unix()),// time
 				[]database.Tx{
 					database.NewTx("morteza", "morteza", 3, ""),
@@ -40,10 +35,8 @@ var migrateCmd = func() *cobra.Command {
 				},
 			)
 
-			state.AddBlock(block0)
-
-			// save block0
-			block0hash, err := state.Persist()
+			// apply block txs to state.balances and store in disk, (mempool was removed)
+			block0hash, err := state.AddBlock(block0)
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				os.Exit(1)
@@ -51,7 +44,7 @@ var migrateCmd = func() *cobra.Command {
 
 			block1 := database.NewBlock(
 				block0hash,
-				state.LatestBlock().Header.Number + 1,
+				state.NextBlockNumber(),
 				uint64(time.Now().Unix()),
 				[]database.Tx{
 					database.NewTx("morteza", "babayaga", 2000, ""),
@@ -63,30 +56,26 @@ var migrateCmd = func() *cobra.Command {
 				},
 			)
 
-			state.AddBlock(block1)
-
-			block1hash, err := state.Persist()
+			block1hash, err := state.AddBlock(block1)
 			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
+				fmt.Fprintln(os. Stderr, err)
 				os.Exit(1)
 			}
 
 			block2 := database.NewBlock(
 				block1hash,
-				state.LatestBlock().Header.Number + 1,
+				state.NextBlockNumber(),
 				uint64(time.Now().Unix()),
 				[]database.Tx{
 					database.NewTx("morteza", "morteza", 24700, "reward"),
 				},
 			)
-			state.AddBlock(block2)
 
-			_, err = state.Persist()
+			_, err = state.AddBlock(block2)
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				os.Exit(1)
 			}
-
 		},
 	}
 

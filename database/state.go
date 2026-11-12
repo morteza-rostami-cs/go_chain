@@ -4,22 +4,25 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"reflect"
 
 	// "io/fs"
 	"go_chain/fs"
 	"os"
-	"time"
 )
 
 type State struct{
-	Balances map[Account]uint
-	txMempool []Tx
-	dbFile *os.File
+	Balances	map[Account]uint
+	txMempool	[]Tx
+	dbFile	*os.File
 	// store the whole last block, cause we need it to do: Block.Number + 1, when creating a new block
-	latestBlock *Block
+	latestBlock	*Block
 
 	// hash of the last block in our chain, is the snapshot/hash of the chain
-	latestBlockHash Hash // <= 👈 snapshot
+	latestBlockHash	Hash // <= 👈 snapshot
+	// does it have 1 genesis block, at least or empty?
+	// it's job:: skip number and hash validation on first block.
+	hasGenesisBlock	bool
 }
 //State methods
 
@@ -32,124 +35,164 @@ func (self *State) LatestBlock() *Block {
 	return self.latestBlock
 }
 
+// what should be the next block number allowed
+func (self *State) NextBlockNumber() uint64 {
+	// if no block (chain empty): 0
+	// if block: blockNum + 1
+	if !self.hasGenesisBlock { return uint64(0) }
+	return self.latestBlock.Header.Number + 1
+}
+
+// apply a path of blocks, txs => to balances and mempool
+func (self *State) AddBlocks(blocks []Block) error {
+	for _, b := range blocks {
+		_, err := self.AddBlock(b)
+		if err != nil { return err }
+	}
+	return nil
+}
+
 //👺👺 AddBlock() and AddTx() => are used to update state.balances and mempool => after a new block/transactions patch
 
 // 👺👺 applyBlock() and apply() => are used to update state. after loading genesis.json and block.db -- there, we do not need to add transactions to mempool, we are just replaying the old transactions 
 
 // go over block.txs and call self.AddTs() for each tx in a block
 // tmcmigrate => calls :: AddBlock => for migrating old tx.db transactions
-func (self *State) AddBlock(b Block) error {
-	for _, tx := range b.TXs{
-		if err := self.AddTx(tx); err != nil{ return err }
-	}
-	return nil
-}
 
-// apply each tx to state.Balances and push to txMempool
-// tmc tx add => calls:: AddTx()
-func (self *State) AddTx(tx Tx) error {
-	// apply to state.Balances
-	if err := self.apply(tx); err != nil { return err }
+// apply block to state and persists on disk.
+// returns hash, for next AddBlock() call !!
+func (self *State) AddBlock(b Block) (Hash, error) {
 
-	// push tx to end of mempool slice
-	self.txMempool = append(self.txMempool, tx)
+	// copy state, we change the pendingState, in case one the operation fails, the main state does not change.
+	// reason: in applyBlock() we validate block, so it might fail!! and we do not want to change to State til the end.
+	pendingState := self.copy()
 
-	return nil
-}
-
-// hash and store the last block
-// returns: Hash of the last block
-func (self *State) Persist() (Hash, error) {
-	// make a block, using state.latestBlockHash = which will be the parent of the new last block
-
-	// fmt.Println(self.latestBlock)
-	
-	var blockNumber = uint64(0)// zero for genesis block
-	// genesis block, when NewStateFromDisk() finds nothing in block.db => sets state.latestBlock = nil
-	if self.latestBlock != nil {
-		fmt.Println(self.latestBlock.Header.Number)
-		// after we have one block, increment
-		blockNumber = self.latestBlock.Header.Number + 1 
-	}
-	
-	newLastBlock := NewBlock(
-		self.latestBlockHash,
-		// Number:: increment block number
-		// self.latestBlock.Header.Number + 1,
-		blockNumber,
-		uint64(time.Now().Unix()), // unix time
-		self.txMempool,// store the entire available mempool in our new last block
-	)
-
-	// hash the new last block
-	blockHash, err := newLastBlock.Hash()
-	if err != nil { return Hash{}, nil }
-
-	// we build the wrapper blockFS, for block.db json storage
-	blockFs := BlockFS{
-		Key: blockHash,
-		Value: newLastBlock,
-	}
-
-	// struct to json []byte
-	blockFsJson, err := json.Marshal(blockFs)
-	if err != nil { return Hash{}, err }
-
-	fmt.Printf("persist new last block to disk: \n")
-	fmt.Printf("t%s\n", blockFsJson)
-
-	// new line for our blockFS json
-	blockFsJson = append(blockFsJson, '\n')
-
-	// write blockFsJson to block.db
-	if _, err := self.dbFile.Write(blockFsJson); err != nil{
+	// apply block to state
+	if err := applyBlock(b, pendingState); err != nil{
 		return Hash{}, err
 	}
 
-	// set latest block, so it is not nil for the next persist
-	self.latestBlock = &newLastBlock
+	// hash block
+	blockHash, err := b.Hash()
+	if err != nil { return Hash{}, nil }
 
-	// store the newLastBlock.hash in state, we use this for persisting the next block, and use it as it's parent hash 
+	//blockFs json storage
+	blockFs := BlockFS{blockHash, b}
+
+	blockFsJson, err := json.Marshal(blockFs)
+	if err != nil { return Hash{}, nil }
+
+	fmt.Printf("Persisting new block to disk.")
+	fmt.Printf("\t%s\n", blockFsJson)
+
+	// write blockFs to the block.db file
+	blockFsJson = append(blockFsJson, '\n')
+	_, err = self.dbFile.Write(blockFsJson)
+	if err != nil { return Hash{}, err }
+
+	// set the state to pending state
+	// if: blocks successfully persist => set the main state
+	self.Balances = pendingState.Balances
 	self.latestBlockHash = blockHash
-	// empty the mempool, ready for the next patch
-	self.txMempool = []Tx{}
 
-	return self.latestBlockHash, nil
+	lastBlock := b // copy block
+	self.latestBlock = &lastBlock // store a pointer
+	self.hasGenesisBlock = true
+
+	return blockHash, nil
+}
+
+// copy state
+func (self *State) copy() State {
+	s := State{}
+
+	s.hasGenesisBlock = self.hasGenesisBlock
+	s.latestBlock = self.latestBlock// not copy, is a pointer
+	s.latestBlockHash = self.latestBlockHash
+	s.txMempool = make([]Tx, len(self.txMempool))
+	s.Balances = make(map[Account]uint)
+
+	//copy balances
+	for acc, balance := range self.Balances{
+		s.Balances[acc] = balance
+	}
+
+	// copy transactions
+	for _, tx := range self.txMempool{
+		s.txMempool = append(s.txMempool, tx)
+	}
+
+	return s
+}
+
+// validate and apply a block to state
+func applyBlock(b Block, s State) error {
+	// next block number ,we expect
+	var nextExpectedBlockNumber = uint64(0)
+	// if at least one block, increment it
+	if s.hasGenesisBlock {
+		nextExpectedBlockNumber = s.latestBlock.Header.Number + 1
+	}
+
+	// if block number does not match
+	if s.hasGenesisBlock && b.Header.Number != nextExpectedBlockNumber {
+		return fmt.Errorf(
+			"next expected block must be '%d' not '%d'",
+			nextExpectedBlockNumber,
+			b.Header.Number,
+		)
+	}
+
+	// validate parent hash
+	// s.latestBlock.Header.Number > 0 => means: first block does not have a parent to check!!
+	if s.hasGenesisBlock && s.latestBlock.Header.Number > 0 && !reflect.DeepEqual(b.Header.Parent, s.latestBlockHash) {
+		return fmt.Errorf(
+			"next block parent hash must be '%x' not '%x'",
+			s.latestBlockHash,
+			b.Header.Number,
+		)
+	}
+
+	// if all validation passed => apply transactions to state now.
+	return applyTXs(b.TXs, &s)
+}
+
+// loop and apply transactions
+func applyTXs(txs []Tx, s *State) error {
+	for _, tx := range txs {
+		if err := applyTx(tx, s); err != nil { return err }
+	}
+	return nil
+}
+
+// apply each transaction to state.Balances
+func applyTx(tx Tx, state *State) error {
+	// reward tx
+	if tx.IsReward() {
+		state.Balances[tx.To] += tx.Value
+		return nil
+	}
+
+	// check for insufficient balance
+	if tx.Value > state.Balances[tx.From] {
+		fmt.Println("insufficient balance")
+		return fmt.Errorf(
+			"wrong TX. sender '%s' balance is %d TMC. Tx cost is %d TMC.",
+			tx.From,
+			state.Balances[tx.From],
+			tx.Value,
+		)
+	}
+
+	// normal tx
+	state.Balances[tx.From] -= tx.Value
+	state.Balances[tx.To] += tx.Value
+
+	return nil
 }
 
 func (self *State) Close() error {
 	return self.dbFile.Close()
-}
-
-// apply block.txs to state.Balances
-// call this for replay of transactions, when we read from block.db
-func (self *State) applyBlock(b Block) error {
-	for _, tx := range b.TXs {
-		// apply each tx
-		if err := self.apply(tx); err != nil { return err }
-	}
-	return nil
-}
-
-// actual apply() logic, reward tx and normal tx
-// apply a tx => to state.Balances
-func (self *State) apply(tx Tx) error {
-
-	// tx: reward
-	if tx.IsReward(){
-		self.Balances[tx.To] += tx.Value
-		return nil
-	}
-
-	if self.Balances[tx.From] < tx.Value {
-		return fmt.Errorf("insufficient balance\n")	
-	}
-
-	// tx: normal
-	self.Balances[tx.From] -= tx.Value
-	self.Balances[tx.To] += tx.Value
-
-	return nil
 }
 
 // load genesis.json
@@ -207,6 +250,7 @@ func NewStateFromDisk(dataDir string) (*State, error) {
 		// nil:: so i can check the genesis block in Persist
 		latestBlock: nil,
 		latestBlockHash: Hash{},// empty hash
+		hasGenesisBlock: false,
 	}
 
 	// loop each block line inside block.db
@@ -237,17 +281,26 @@ func NewStateFromDisk(dataDir string) (*State, error) {
 
 		// apply block => state.Balances map
 		// blockFs.Value => Block
-		if err := state.applyBlock(blockFs.Value); err != nil {
+		// if err := state.applyBlock(blockFs.Value); err != nil {
+		// 	return nil, err
+		// }
+
+		if err := applyTXs(blockFs.Value.TXs, state); err != nil {
 			return nil, err
 		}
 
 		// book wants this::
 		//state.latestBlock = blockFs.Value
 
-		state.latestBlock = &blockFs.Value// set last block in state
+		block := blockFs.Value
+
+		state.latestBlock = &block// set last block in state
 
 		// at the last loop we get the key/hash of the last block, and store it as our snapshot or the whole chain
 		state.latestBlockHash = blockFs.Key
+
+		// if block.db empty => for loop does not even run, no block!
+		state.hasGenesisBlock = true
 	}
 
 	return state, nil

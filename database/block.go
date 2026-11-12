@@ -2,6 +2,7 @@ package database
 
 import (
 	// "crypto/sha256"
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -19,13 +20,17 @@ type Hash [32]byte
 //🤪🤪 MarshalText() and UnmarshalText() are Special method:: encoding/json discovers and calls this when encodes or decodes a Hash field. eg: json.Marshal(hash)
 // there is this TextMarshaler interface{ MarshalText() } 
 //encoding.TextMarshaler interface (i.e., has MarshalText() ([]byte, error))
-func (self Hash) MarshalText() ([]byte, error) {
-	// hex string
-	// self[:] -> creates an slice
-	var hx = hex.EncodeToString(self[:])
+// func (self Hash) MarshalText() ([]byte, error) {
+// 	// hex string
+// 	// self[:] -> creates an slice
+// 	var hx = hex.EncodeToString(self[:])
 
-	return []byte(hx), nil
-}
+// 	return []byte(hx), nil
+// }
+
+func (self Hash) MarshalText() ([]byte, error) {
+	return []byte(self.Hex()), nil
+} 
 
 /*
 for input "aabbcc...", hex.Decode converts every two hex characters into one byte:
@@ -47,6 +52,18 @@ func (self *Hash) UnmarshalText(data []byte) error {
 	)
 	// if no error returns nil
 	return err
+}
+
+func (self Hash) Hex() string{
+	// self[:] converts array to slice
+	return hex.EncodeToString(self[:])
+}
+
+// check if hash is empty, basically: all zeros, [32]byte array
+func (self Hash) IsEmpty() bool{
+	emptyHash := Hash{}
+	// pass slice of bytes, array[:] => slice
+	return bytes.Equal(emptyHash[:], self[:])
 }
 
 /*
@@ -83,6 +100,14 @@ type Block struct{
 	// batch of transactions in a block
 	TXs []Tx	`json:"payload"`
 }
+// constructor
+func NewBlock(parent Hash, number uint64, time uint64, txs []Tx) Block {
+	return Block{
+		BlockHeader{parent, number, time},
+		txs,
+	}
+}
+
 // methods
 
 // create a hash [32]byte of the instance of our block
@@ -111,12 +136,4 @@ type BlockFS struct{
 	Key Hash `json:"hash"`
 	// the block itself
 	Value Block `json:"block"`
-}
-
-// block constructor function
-func NewBlock(parent Hash, number uint64, time uint64, txs []Tx) Block {
-	return Block{
-		BlockHeader{parent, number, time},
-		txs,
-	}
 }

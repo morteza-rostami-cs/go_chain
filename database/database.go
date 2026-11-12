@@ -26,6 +26,10 @@ func GetBlocksAfter(
 	// when we find the target block_hash
 	var shouldStartCollecting = false
 
+	// if blockHash [0 0 0 0 ...] empty, target is genesisBlock, so start grabbing the rest of blocks
+	// basically: i have zero block, give me all you have. from genesis_block
+	if blockHash.IsEmpty() { shouldStartCollecting = true }
+
 	// scanner for going over blocks
 	var scanner = bufio.NewScanner(file)
 
