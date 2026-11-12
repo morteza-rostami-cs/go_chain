@@ -19,6 +19,25 @@ func writeErrRes(res http.ResponseWriter, err error) {
 	res.Write(jsonErrRes)// write json response body to client
 }
 
+// one server to the other => read response (different from write response)
+func readRes(res *http.Response, resBody interface{}) error {
+	// read response body into json bytes
+	resBodyJson, err := io.ReadAll(res.Body)
+	if err != nil {
+		return fmt.Errorf("unable to read response body. %s", err.Error())
+	}
+
+	defer res.Body.Close()// close response body
+
+	// put our json into our type/struct
+	err = json.Unmarshal(resBodyJson, resBody)
+	if err != nil {
+		return fmt.Errorf("unable to unmarshal response body. %s", err.Error())
+	}
+
+	return nil
+}
+
 // send successful response
 func writeRes(
 	res http.ResponseWriter, 

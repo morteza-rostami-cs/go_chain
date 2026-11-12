@@ -22,9 +22,12 @@ func runCmd() *cobra.Command {
 			fmt.Println("Launching TMC node and its http api.")
 
 			// create one bootstrap node
+			// for now:: all nodes i start, will have 8081 as the initial bootstrap node.
 			bootstrap := node.NewPeerNode(
 				"127.0.0.1",
-				port + 1,// for now: node.port + 1 
+				// port + 1,// for now: node.port + 1 
+				// so, all nodes have 8081, can connect register them self an pick up other peers.
+				node.DefaultHttpPort, // 8081 is the main bootstrap for now.				
 				true,// is_bootstrap
 				true,// is_active
 			)

@@ -1,6 +1,7 @@
 package node
 
 import (
+	"encoding/json"
 	"go_chain/database"
 	"net/http"
 )
@@ -41,7 +42,15 @@ type StatusRes struct{
 	// nodes can check the height, to see if they are behind.
 	Number	uint64 `json:"block_number"`
 	// p2p nodes (peers)
-	KnownPeers []PeerNode `json:"peers_known"`
+	// KnownPeers []PeerNode `json:"peers_known"`
+
+	// address: PeerNode map
+	// key: 127.0.0.1:8080 and value: PeerNode 
+	KnownPeers map[string]PeerNode `json:"peers_known"`
+}
+
+type  RegisterPeerRes struct{
+	Message	string
 }
 
 // http handlers
@@ -97,16 +106,39 @@ func statusHandler(res http.ResponseWriter, req *http.Request, node *Node){
 
 	// check for the latest block, because: if block.db is empty, then: sate.LatestBlock() returns: nil
 	if lb := node.state.LatestBlock(); lb != nil {
-		blockNumber = lb.Header.Number
+		// we add 1 to (zero-based block numbers to get the block_count)
+		blockNumber = lb.Header.Number + 1
 	} 
 
 	response := StatusRes{
 		Hash: node.state.LatestBlockHash(),
+		// this is block count, not block number!
 		Number: blockNumber,
 		KnownPeers: node.knownPeers,
 	}
 
 	writeRes(res, response)
+}
+
+// /node/register
+func registerPeerHandler(
+	res http.ResponseWriter,
+	req *http.Request,
+	self *Node,	
+) {
+	var peer PeerNode // Node B as a peer
+
+	// decode json to struct
+	err := json.NewDecoder(req.Body).Decode(&peer)
+	if err != nil {
+		writeErrRes(res , err)
+		return
+	}
+
+	// add peer into current node.knownPeer
+	self.knownPeers[peer.TcpAddress()] = peer
+
+	writeRes(res, RegisterPeerRes{Message: "peer registered"})
 }
 
 //=====end handlers===========
