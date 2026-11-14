@@ -105,6 +105,7 @@ func txAddHandler(
 	var block = database.NewBlock(
 		state.LatestBlockHash(),// parent
 		state.NextBlockNumber(), // number
+		0, // nonce
 		uint64(time.Now().Unix()), // time
 
 		// pass our tx into block

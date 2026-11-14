@@ -28,6 +28,7 @@ var migrateCmd = func() *cobra.Command {
 			block0 := database.NewBlock(
 				database.Hash{},// hash
 				state.NextBlockNumber(), // Header.Number
+				0, // nonce
 				uint64(time.Now().Unix()),// time
 				[]database.Tx{
 					database.NewTx("morteza", "morteza", 3, ""),
@@ -45,6 +46,7 @@ var migrateCmd = func() *cobra.Command {
 			block1 := database.NewBlock(
 				block0hash,
 				state.NextBlockNumber(),
+				0, // nonce
 				uint64(time.Now().Unix()),
 				[]database.Tx{
 					database.NewTx("morteza", "babayaga", 2000, ""),
@@ -65,6 +67,7 @@ var migrateCmd = func() *cobra.Command {
 			block2 := database.NewBlock(
 				block1hash,
 				state.NextBlockNumber(),
+				0, // nonce
 				uint64(time.Now().Unix()),
 				[]database.Tx{
 					database.NewTx("morteza", "morteza", 24700, "reward"),

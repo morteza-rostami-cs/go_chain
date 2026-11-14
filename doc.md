@@ -91,45 +91,12 @@ tmc run --datadir=$HOME/.tmc-node2 --port=8082
 
 
 > tree -a -I "_archives|_notes|.git"
-.
-├── bin
-│   └── go_chain
-├── cmd
-│   └── tmc
-│       ├── balances.go
-│       ├── main.go
-│       ├── migrate.go
-│       ├── run.go
-│       └── version.go
-├── data
-│   ├── block.db
-│   └── genesis.json
-├── database
-│   ├── block.go
-│   ├── database.go
-│   ├── fs.go
-│   ├── genesis.go
-│   ├── state.go
-│   └── tx.go
-├── doc.md
-├── fs
-│   └── fs.go
-├── .gitignore
-├── go.mod
-├── go.sum
-├── main.go
-├── makefile
-├── node
-│   ├── http_req_res_utils.go
-│   ├── http_routes.go
-│   ├── node.go
-│   └── sync.go
-├── Readme.md
-└── .vscode
-    └── settings.json
 
-9 directories, 27 files
->
+# run test
+go test ./node -test.v -test.run ^TestValidBlockHash
+
+# this also
+go test -v -run '^TestValidBlockHash$' ./node
 
 
 ```

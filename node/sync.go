@@ -183,7 +183,11 @@ func (self *Node) syncBlocks(
 
 		// fetch blocks from peer
 		// /node/sync?fromBlock=<our latest hash>
-		blocks, err := fetchBlocksFromPeer(peer, self.state.LatestBlockHash())
+		blocks, err := fetchBlocksFromPeer(
+			peer,
+			// our own last block hash.
+			self.state.LatestBlockHash(),
+		)
 
 		if err != nil { return err }
 

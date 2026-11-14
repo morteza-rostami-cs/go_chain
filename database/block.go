@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	// "encoding/json"
 	// "fmt"
 )
@@ -90,6 +91,10 @@ type BlockHeader struct{
 	// block_number or Height: block number for p2p features
 	// tells us which node is longer.
 	Number uint64 `json:"number"` // 8 bytes
+
+	// nonce => for proof of work
+	Nonce	uint32	`json:"nonce"`
+
 	//Unix timestamps, block created at
 	Time	uint64 `json:"time"`
 }
@@ -102,9 +107,15 @@ type Block struct{
 	TXs []Tx	`json:"payload"`
 }
 // constructor
-func NewBlock(parent Hash, number uint64, time uint64, txs []Tx) Block {
+func NewBlock(
+	parent Hash,
+	number uint64,
+	nonce uint32,
+	time uint64, 
+	txs []Tx,
+) Block {
 	return Block{
-		BlockHeader{parent, number, time},
+		BlockHeader{parent, number, nonce, time},
 		txs,
 	}
 }
@@ -137,4 +148,18 @@ type BlockFS struct{
 	Key Hash `json:"hash"`
 	// the block itself
 	Value Block `json:"block"`
+}
+
+// check for valid mined block hash
+// RULE: A valid block hash must start with six hexadecimal zeroes.
+// hex digit = 4bits => 1 byte is 8bits => so: every 0 byte, holds 2 hex zeros => so: 3*2 = 6 => we need 6 hex zeros
+func IsBlockHashValid(hash Hash) bool {
+	var byte0 = fmt.Sprintf("%x", hash[0]) == "0"
+	var byte1 = fmt.Sprintf("%x", hash[1]) == "0"
+	var byte2 = fmt.Sprintf("%x", hash[2]) == "0"
+	// we also allow, hashes with more hex zeros than 6
+	// var byte3 = fmt.Sprintf("%x", hash[3]) != "0"
+
+	// if 6 of the hex hash == "0" string => mining is valid
+	return byte0 && byte1 && byte2
 }
