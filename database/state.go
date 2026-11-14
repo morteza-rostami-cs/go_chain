@@ -35,11 +35,26 @@ func (self *State) LatestBlock() *Block {
 	return self.latestBlock
 }
 
+// get current BlockNumber
+func (self *State) CurrentBlockNumber() uint64 {
+	if self.latestBlock == nil { return uint64(0) }
+	return self.latestBlock.Header.Number
+}
+
 // what should be the next block number allowed
 func (self *State) NextBlockNumber() uint64 {
 	// if no block (chain empty): 0
 	// if block: blockNum + 1
 	if !self.hasGenesisBlock { return uint64(0) }
+	return self.latestBlock.Header.Number + 1
+}
+
+// our chain is 0 based, so: 0, 1, 2, 3
+// return the length of chain
+func (self *State) GetChainLen() uint64 {
+	// no block on chain yet
+	if self.latestBlock == nil { return uint64(0) }	
+	// zero based length is always 1 behind
 	return self.latestBlock.Header.Number + 1
 }
 
@@ -83,7 +98,7 @@ func (self *State) AddBlock(b Block) (Hash, error) {
 	if err != nil { return Hash{}, nil }
 
 	fmt.Printf("Persisting new block to disk.")
-	fmt.Printf("\t%s\n", blockFsJson)
+	fmt.Printf("\t%s\n", blockFsJson[len(blockFsJson)-100:])
 
 	// write blockFs to the block.db file
 	blockFsJson = append(blockFsJson, '\n')
@@ -109,7 +124,8 @@ func (self *State) copy() State {
 	s.hasGenesisBlock = self.hasGenesisBlock
 	s.latestBlock = self.latestBlock// not copy, is a pointer
 	s.latestBlockHash = self.latestBlockHash
-	s.txMempool = make([]Tx, len(self.txMempool))
+	// s.txMempool = make([]Tx, len(self.txMempool))
+	s.txMempool = []Tx{} // empty slice
 	s.Balances = make(map[Account]uint)
 
 	//copy balances
@@ -126,13 +142,10 @@ func (self *State) copy() State {
 }
 
 // validate and apply a block to state
+// take a copy of main state
 func applyBlock(b Block, s State) error {
-	// next block number ,we expect
-	var nextExpectedBlockNumber = uint64(0)
-	// if at least one block, increment it
-	if s.hasGenesisBlock {
-		nextExpectedBlockNumber = s.latestBlock.Header.Number + 1
-	}
+	// // next block number ,we expect
+	var nextExpectedBlockNumber = s.NextBlockNumber()
 
 	// if block number does not match
 	if s.hasGenesisBlock && b.Header.Number != nextExpectedBlockNumber {

@@ -10,3 +10,6 @@ build-cmd:
 
 run-node:
 	tmc run --datadir=./data
+
+tree:
+	tree -a -I "_archives|_notes|.git"

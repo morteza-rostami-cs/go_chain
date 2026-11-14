@@ -63,6 +63,7 @@ func (self Hash) Hex() string{
 func (self Hash) IsEmpty() bool{
 	emptyHash := Hash{}
 	// pass slice of bytes, array[:] => slice
+	// also:: reflect.DeepEqual(blockHash, Hash{})
 	return bytes.Equal(emptyHash[:], self[:])
 }
 

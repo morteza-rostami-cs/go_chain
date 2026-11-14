@@ -1,9 +1,11 @@
 package node
 
 import (
-	"encoding/json"
+	// "encoding/json"
+	"fmt"
 	"go_chain/database"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -52,6 +54,12 @@ type StatusRes struct{
 
 type  RegisterPeerRes struct{
 	Message	string `json:"message"`
+}
+
+// GET /node/peer
+type AddPeerRes struct{
+	Success	bool	`json:"success"`
+	Error	string	`json:"error"`
 }
 
 // /node/sync?hash=sdfsdf
@@ -114,19 +122,18 @@ func txAddHandler(
 	writeRes(res, TxAddRes{hash})
 }
 
-func statusHandler(res http.ResponseWriter, req *http.Request, node *Node){
-	var blockNumber uint64 = 0// if there is not block yet
+func statusHandler(
+	res http.ResponseWriter, 
+	req *http.Request, 
+	node *Node,
+){
 
 	// check for the latest block, because: if block.db is empty, then: sate.LatestBlock() returns: nil
-	if lb := node.state.LatestBlock(); lb != nil {
-		// we add 1 to (zero-based block numbers to get the block_count)
-		blockNumber = lb.Header.Number + 1
-	} 
 
 	response := StatusRes{
 		Hash: node.state.LatestBlockHash(),
 		// this is block count, not block number!
-		Number: blockNumber,
+		Number: node.state.GetChainLen(),
 		KnownPeers: node.knownPeers,
 	}
 
@@ -134,25 +141,25 @@ func statusHandler(res http.ResponseWriter, req *http.Request, node *Node){
 }
 
 // /node/register
-func registerPeerHandler(
-	res http.ResponseWriter,
-	req *http.Request,
-	self *Node,	
-) {
-	var peer PeerNode // Node B as a peer
+// func registerPeerHandler(
+// 	res http.ResponseWriter,
+// 	req *http.Request,
+// 	self *Node,	
+// ) {
+// 	var peer PeerNode // Node B as a peer
 
-	// decode json to struct
-	err := json.NewDecoder(req.Body).Decode(&peer)
-	if err != nil {
-		writeErrRes(res , err)
-		return
-	}
+// 	// decode json to struct
+// 	err := json.NewDecoder(req.Body).Decode(&peer)
+// 	if err != nil {
+// 		writeErrRes(res , err)
+// 		return
+// 	}
 
-	// add peer into current node.knownPeer
-	self.knownPeers[peer.TcpAddress()] = peer
+// 	// add peer into current node.knownPeer
+// 	self.knownPeers[peer.TcpAddress()] = peer
 
-	writeRes(res, RegisterPeerRes{Message: "peer registered"})
-}
+// 	writeRes(res, RegisterPeerRes{Message: "peer registered"})
+// }
 
 // /node/sync
 func syncHandler(
@@ -160,7 +167,7 @@ func syncHandler(
 	req *http.Request, 
 	dataDir string,
 ) {
-	// get the hash, from: url ?fromHash=sdfdss -- query_parameter
+	// get the hash, from: url ?fromBlock=sdfdss -- query_parameter
 	reqHash := req.URL.Query().Get(endpointSyncQueryKeyFromBlock)
 
 	var hash = database.Hash{}
@@ -179,6 +186,39 @@ func syncHandler(
 	}
 
 	writeRes(res, SyncRes{Blocks: blocks})
+}
+
+// a node sends: ip:port => and register with other
+func addPeerHandler(
+	res http.ResponseWriter,
+	req *http.Request,
+	node	*Node,
+) {
+	// gets query params: /node/peer?ip=localhost&port=8081
+	var peerIP = req.URL.Query().Get(endpointAddPeerQueryKeyIP)
+	var peerPortRaw = req.URL.Query().Get(endpointAddPeerQueryKeyPort)
+
+	// convert string to uint
+	peerPort, err := strconv.ParseUint(peerPortRaw, 10, 32)
+	if err != nil {
+		writeRes(res, AddPeerRes{false, err.Error()})
+		return
+	}
+
+	// create a new peerNode
+	var peer = NewPeerNode(
+		peerIP, 
+		peerPort, 
+		false, // is_bootstrap
+		true, // connected
+	)
+
+	// add to this node knownPeers
+	node.AddPeer(peer) 
+
+	fmt.Printf("peer %s was added into KnownPeers\n", peer.TcpAddress())
+
+	writeRes(res, AddPeerRes{Success: true, Error: ""})
 }
 
 //=====end handlers===========

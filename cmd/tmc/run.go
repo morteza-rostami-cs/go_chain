@@ -18,6 +18,7 @@ func runCmd() *cobra.Command {
 			// get dataDir flag
 			// dataDir, _ := cmd.Flags().GetString(flagDataDir)
 
+			ip, _ := cmd.Flags().GetString(flagIP)
 			port, _ := cmd.Flags().GetUint64(flagPort)
 			
 			fmt.Println("Launching TMC node and its http api.")
@@ -30,11 +31,17 @@ func runCmd() *cobra.Command {
 				// so, all nodes have 8081, can connect register them self an pick up other peers.
 				node.DefaultHttpPort, // 8081 is the main bootstrap for now.				
 				true,// is_bootstrap
-				true,// is_active
+				false,// connected
 			)
 
 			// create our node
-			n := node.New(getDataDirFromCmd(cmd), port, bootstrap)
+			n := node.New(
+				getDataDirFromCmd(cmd), 
+				// ip
+				ip,
+				port, 
+				bootstrap,
+			)
 
 			// run our node server
 			err := n.Run()
@@ -53,6 +60,13 @@ func runCmd() *cobra.Command {
 		flagPort,
 		node.DefaultHttpPort,// default port
 		"exposed HTTP port for communication with peers.",
+	)
+
+	// register a ip command
+	runCmd.Flags().String(
+		flagIP,
+		node.DefaultIP,
+		"exposed IP for communication with peers.",
 	)
 
 	return runCmd

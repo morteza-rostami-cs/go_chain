@@ -13,6 +13,7 @@ import (
 const flagDataDir = "datadir"
 // we should pass --port for running each node
 const flagPort = "port"
+const flagIP = "ip"
 
 func main() {
 	// root command line command
