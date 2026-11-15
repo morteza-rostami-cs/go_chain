@@ -1,10 +1,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	database "go_chain/database"
+	"go_chain/node"
 	"os"
-	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -25,58 +26,37 @@ var migrateCmd = func() *cobra.Command {
 			}
 			defer state.Close()
 
-			block0 := database.NewBlock(
-				database.Hash{},// hash
-				state.NextBlockNumber(), // Header.Number
-				0, // nonce
-				uint64(time.Now().Unix()),// time
-				[]database.Tx{
-					database.NewTx("morteza", "morteza", 3, ""),
-					database.NewTx("morteza", "morteza", 700, "reward"),
-				},
+			// all transactions
+			var txs = []database.Tx{
+				database.NewTx("morteza", "morteza", 3, ""),
+				database.NewTx("morteza", "morteza", 700, "reward"),
+				database.NewTx("morteza", "babayaga", 2000, ""),
+				database.NewTx("morteza", "morteza", 100, "reward"),
+				database.NewTx("babayaga", "morteza", 1, ""),
+				database.NewTx("babayaga", "caesar", 1000, ""),
+				database.NewTx("babayaga", "morteza", 50, ""),
+				database.NewTx("morteza", "morteza", 600, "reward"),
+				database.NewTx("morteza", "morteza", 24700, "reward"),				
+			}
+
+			// genesis block, as a pending block
+			genesisBlock := node.NewPendingBlock(
+				database.Hash{},//parent
+				0, // block number
+				txs,// transactions
 			)
 
-			// apply block txs to state.balances and store in disk, (mempool was removed)
-			block0hash, err := state.AddBlock(block0)
+			// now mine the block
+			minedBlock, err := node.Mine(context.Background(), genesisBlock)
 			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
+				fmt.Println(err)
 				os.Exit(1)
 			}
 
-			block1 := database.NewBlock(
-				block0hash,
-				state.NextBlockNumber(),
-				0, // nonce
-				uint64(time.Now().Unix()),
-				[]database.Tx{
-					database.NewTx("morteza", "babayaga", 2000, ""),
-					database.NewTx("morteza", "morteza", 100, "reward"),
-					database.NewTx("babayaga", "morteza", 1, ""),
-					database.NewTx("babayaga", "caesar", 1000, ""),
-					database.NewTx("babayaga", "morteza", 50, ""),
-					database.NewTx("morteza", "morteza", 600, "reward"),
-				},
-			)
-
-			block1hash, err := state.AddBlock(block1)
+			// add the mined block to block.db and state.Balances
+			_, err = state.AddBlock(minedBlock)
 			if err != nil {
-				fmt.Fprintln(os. Stderr, err)
-				os.Exit(1)
-			}
-
-			block2 := database.NewBlock(
-				block1hash,
-				state.NextBlockNumber(),
-				0, // nonce
-				uint64(time.Now().Unix()),
-				[]database.Tx{
-					database.NewTx("morteza", "morteza", 24700, "reward"),
-				},
-			)
-
-			_, err = state.AddBlock(block2)
-			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
+				fmt.Println(err)
 				os.Exit(1)
 			}
 		},
