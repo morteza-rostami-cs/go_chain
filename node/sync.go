@@ -57,7 +57,7 @@ func (self *Node) doSync() {
 		// do not register with yourself
 		// do not pull peers from yourself
 		// do not pull blocks from yourself
-		if self.ip == peer.IP && self.port == peer.Port {
+		if self.info.IP == peer.IP && self.info.Port == peer.Port {
 			fmt.Println("===== skip my self=====")
 			continue
 		}
@@ -133,9 +133,9 @@ func (self *Node) joinKnownPeers(peer PeerNode) error {
 		peer.TcpAddress(),
 		endpointAddPeer,
 		endpointAddPeerQueryKeyIP,
-		self.ip,
+		self.info.IP,
 		endpointAddPeerQueryKeyPort,
-		self.port,
+		self.info.Port,
 	)
 
 	// call bootstrap /node/peer

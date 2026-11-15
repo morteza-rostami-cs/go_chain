@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"go_chain/node"
 	"os"
@@ -43,8 +44,11 @@ func runCmd() *cobra.Command {
 				bootstrap,
 			)
 
+			// we use this context to control goroutines on shutdown and so on.
+			var ctx = context.Background()
+
 			// run our node server
-			err := n.Run()
+			err := n.Run(ctx)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)

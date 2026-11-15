@@ -56,12 +56,30 @@ func (self PeerNode) TcpAddress() string {
 // our current node object
 type Node struct{
 	dataDir string// path to /data
-	ip	string
-	port	uint64
 	state	*database.State
 	// knownPeers	[]PeerNode
 	// use map cause: easy to check if a key/peer exists.
 	knownPeers map[string]PeerNode
+
+	// transactions waiting to be mined
+
+	// node as a peer information, eg: ip, port
+	info	PeerNode
+
+	// archived/mined transactions
+	// tx_hash:Tx => key:value
+	pendingTXs	map[string]database.Tx
+	archivedTXs	map[string]database.Tx
+
+	// signals coming form network
+
+	// nodes can send a block, trough channel => to say that i mined this first => you stop! 
+	newSyncedBlocks	chan	database.Block
+	// channel:: receive pendingTxs, that other nodes are registering and broadcasting
+	newPendingTXs	chan	database.Tx
+
+	// is node mining or not? => whether the node mining loop is running ?
+	isMining	bool
 }
 
 // Node constructor
@@ -79,12 +97,16 @@ func New(
 
 	return &Node{
 		dataDir: dataDir,
-		ip: ip,
-		port: port,
+		info: NewPeerNode(ip, port, false, false),
 		// state: is stored inside Run() method
-		// slice of PeerNodes, init with one
-		// knownPeers: []PeerNode{bootstrap},
 		knownPeers: peers,
+
+		// these states, only need to be init with empty values
+		pendingTXs: make(map[string]database.Tx),
+		archivedTXs: make(map[string]database.Tx),
+		newSyncedBlocks: make(chan database.Block),
+		newPendingTXs: make(chan database.Tx, 10_000),
+		isMining: false,
 	}
 }
 
@@ -105,7 +127,7 @@ func (self *Node) RemovePeer(peer PeerNode) {
 // check if we know a peer
 func (self *Node) IsKnownPeer(peer PeerNode) bool {
 	// check for itself
-	if peer.IP == self.ip && peer.Port == self.port {
+	if peer.IP == self.info.IP && peer.Port == self.info.Port {
 		return true
 	}
 
@@ -114,11 +136,12 @@ func (self *Node) IsKnownPeer(peer PeerNode) bool {
 	return isKnowPeer
 }
 
-func (self *Node) Run() error {
+// we pass one context into our Run() for all goroutines, to cancel everything on http server shutdown
+func (self *Node) Run(ctx context.Context) error {
 
 	//root context -- context is for carrying signals into goroutines. eg: when to cancel the goroutine.
-	ctx := context.Background()
-	fmt.Printf("Listening on: %s:%d\n", self.ip, self.port)
+	// ctx := context.Background()
+	fmt.Printf("Listening on: %s:%d\n", self.info.IP, self.info.Port)
 
 	// replay the blocks and set the state.Balances and also create /data files, if they do not exist
 	// node, replays blocks/transactions, only once (on start up)
@@ -193,7 +216,7 @@ func (self *Node) Run() error {
 	// start the server
 	return http.ListenAndServe(
 		// address listen on port :8080, on all available network interfaces
-		fmt.Sprintf("%s:%d", self.ip, self.port),
+		fmt.Sprintf("%s:%d", self.info.IP, self.info.Port),
 		nil)// nil means "use http.DefaultServeMux" — the global mux we just registered our two handlers into.
 }
 
