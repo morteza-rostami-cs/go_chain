@@ -2,6 +2,7 @@ package node
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	database "go_chain/database"
 	"net/http"
@@ -68,7 +69,7 @@ type Node struct{
 
 	// archived/mined transactions
 	// tx_hash:Tx => key:value
-	pendingTXs	map[string]database.Tx
+	pendingTXs	map[string]database.Tx // mempool
 	archivedTXs	map[string]database.Tx
 
 	// signals coming form network
@@ -105,6 +106,8 @@ func New(
 		pendingTXs: make(map[string]database.Tx),
 		archivedTXs: make(map[string]database.Tx),
 		newSyncedBlocks: make(chan database.Block),
+
+		// this is buffered channel for 10000 txs
 		newPendingTXs: make(chan database.Tx, 10_000),
 		isMining: false,
 	}
@@ -136,6 +139,51 @@ func (self *Node) IsKnownPeer(peer PeerNode) bool {
 	return isKnowPeer
 }
 
+// decide if to add tx to mempool or not? and maybe do add
+func (self *Node) AddPendingTX(
+	tx database.Tx,
+	fromPeer PeerNode,// use this only for printing name
+) error {
+	// hash the tx
+	txHash, err := tx.Hash()
+	if err != nil { return err }
+
+	// we convert to json, to print the tx content, that is it!
+	txJson, err := json.Marshal(tx)
+	if err != nil { return err }
+
+	// decision:: to add or not to add?
+	// if tx is in memPool or archive, do not add again.
+	_, isAlreadyPending := self.pendingTXs[txHash.Hex()]
+	_, isArchived := self.archivedTXs[txHash.Hex()]
+
+	if !isAlreadyPending && !isArchived {
+		fmt.Printf(
+			"added pending tx %s from peer %s\n",
+			txJson,
+			fromPeer.TcpAddress(),
+		)
+
+		// add tx to mempool
+		self.pendingTXs[txHash.Hex()] = tx
+		// send tx through the channel => so other nodes also can add the tx to their mempool
+		self.newPendingTXs <- tx
+	}
+
+	return nil
+}
+
+// memPool transactions map => return as an slice
+// for sending over http, we want transactions in a slice
+func (self *Node) getPendingTXsAdArray() []database.Tx {
+	var txs = make([]database.Tx, 0)// empty slice
+	// loop over the map, skip the key/hash
+	for _, tx := range self.pendingTXs {
+		txs = append(txs, tx)
+	}
+	return txs
+}
+
 // we pass one context into our Run() for all goroutines, to cancel everything on http server shutdown
 func (self *Node) Run(ctx context.Context) error {
 
@@ -153,13 +201,6 @@ func (self *Node) Run(ctx context.Context) error {
 	// store a pointer to state on node
 	self.state = state // set the state before .sync()
 
-	// register with bootstrap node
-	// if it is not 8081
-	// if self.port != DefaultHttpPort {
-	// 	err := self.registerWithBootstrap()
-	// 	if err != nil { return err }
-	// }
-
 	// sync() is a goroutine that runs in background for syncing network nodes together, we also: pass a context in there.
 	go self.sync(ctx) // for each node, we run one goroutine
 
@@ -176,7 +217,7 @@ func (self *Node) Run(ctx context.Context) error {
 	http.HandleFunc(
 		"/tx/add",
 		func(res http.ResponseWriter, req *http.Request) {
-			txAddHandler(res, req, state)
+			txAddHandler(res, req, self)
 		},
 	)
 
@@ -188,14 +229,6 @@ func (self *Node) Run(ctx context.Context) error {
 			statusHandler(res, req, self)
 		},
 	)
-
-	// POST /node/register
-	// http.HandleFunc(
-	// 	"/node/register",
-	// 	func(res http.ResponseWriter, req *http.Request) {
-	// 		registerPeerHandler(res, req, self)
-	// 	},
-	// )
 
 	// Get /node/sync
 	http.HandleFunc(
@@ -219,37 +252,3 @@ func (self *Node) Run(ctx context.Context) error {
 		fmt.Sprintf("%s:%d", self.info.IP, self.info.Port),
 		nil)// nil means "use http.DefaultServeMux" — the global mux we just registered our two handlers into.
 }
-
-// nodes can all this method to register with bootstrap, knownPeers
-// func (self *Node) registerWithBootstrap() error {
-// 	// get bootstrap node 
-// 	// all nodes have: 8081
-// 	bootstrap := self.knownPeers[fmt.Sprintf("127.0.0.1:%d", DefaultHttpPort)]
-
-// 	// create sender node peer into
-// 	myPeer := NewPeerNode(
-// 		"127.0.0.1",
-// 		self.port,
-// 		false,// sender is not a bootstrap node
-// 		true,
-// 	)
-
-// 	// convert PeerNode to json, to send over http
-// 	body, err := json.Marshal(myPeer)
-// 	if err != nil { return err }
-
-// 	// send registration request
-// 	url := fmt.Sprintf("http://%s/node/register", bootstrap.TcpAddress())
-
-// 	res, err := http.Post(url, "application/json", bytes.NewBuffer(body))
-// 	if err != nil { return err }
-
-// 	defer res.Body.Close()
-
-// 	if res.StatusCode != http.StatusOK {
-// 		return fmt.Errorf("registration failed: %s", res.Status)
-// 	}
-
-// 	fmt.Println("successfully registered with bootstrap node.")
-// 	return nil
-// }

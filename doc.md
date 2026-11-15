@@ -101,4 +101,8 @@ go test -v -run '^TestValidBlockHash$' ./node
 # run a specific test in a package
 go test -v -run TestMine ./node/
 
+> git diff > ./_notes/diff.txt
+
+go build ./...
+
 ```

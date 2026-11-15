@@ -6,7 +6,6 @@ import (
 	"go_chain/database"
 	"net/http"
 	"strconv"
-	"time"
 )
 
 // http error response
@@ -33,7 +32,10 @@ type TxAddReq struct{
 // Post /create/tx response
 type TxAddRes struct{
 	// hash of the last block
-	Hash database.Hash `json:"block_hash"`
+	// Hash database.Hash `json:"block_hash"`
+	
+	// add to mempool and return with a success
+	Success	bool `json:"success"`
 }
 
 // Get /node/status
@@ -77,10 +79,12 @@ func listBalancesHandler(res http.ResponseWriter, req *http.Request, state *data
 	)
 }
 
+// POST /tx/add {from, to, value, data}
 func txAddHandler(
 	res http.ResponseWriter, 
 	req *http.Request, 
-	state *database.State,
+	// state *database.State,
+	node	*Node,
 ){
 	// empty request
 	request := TxAddReq{}
@@ -101,26 +105,14 @@ func txAddHandler(
 		request.Data,
 	)
 
-	// make a new block
-	var block = database.NewBlock(
-		state.LatestBlockHash(),// parent
-		state.NextBlockNumber(), // number
-		0, // nonce
-		uint64(time.Now().Unix()), // time
-
-		// pass our tx into block
-		[]database.Tx{tx}, // txs
-	) 
-
-	// applies to state.Balances and also persists in block.db
-	hash, err := state.AddBlock(block)
-	if err != nil {
+	// add ts to mempool
+	if err := node.AddPendingTX(tx, node.info); err != nil {
 		writeErrRes(res, err)
 		return
 	}
-
-	// final response, convert to json and send http response
-	writeRes(res, TxAddRes{hash})
+	
+	// tx was added to waiting pool, return a success
+	writeRes(res, TxAddRes{Success: true})
 }
 
 func statusHandler(
