@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"go_chain/database"
 	"testing"
+	"time"
 )
 
 func TestValidBlockHash(t *testing.T) {
@@ -26,6 +27,19 @@ func TestValidBlockHash(t *testing.T) {
 	var isValid = database.IsBlockHashValid(hash)
 	if !isValid {
 		t.Fatalf("hash %s is invalid. we need 6 zeros.", hexHash)
+	}
+}
+
+func TestInvalidBlockHash(t *testing.T) {
+	hexHash := "000001fa04f8160395c387277f8b2f14837603383d33809a4db586086168edfa"
+	var hash = database.Hash{}
+
+	hex.Decode(hash[:], []byte(hexHash))
+
+	isValid := database.IsBlockHashValid(hash)
+	// if it is valid, our validation does not work
+	if isValid {
+		t.Fatal("this hash is not suppose to be valid.")
 	}
 }
 
@@ -68,4 +82,15 @@ func TestMine(t *testing.T) {
 
 }
 
+// test: with passing a context cancellation timeout, into our goroutine
+func TestMineWithTimeout(t *testing.T) {
+	pendingBlock := createRandomPendingBlock()
+
+	// our goroutine times out after a certain time
+	// we are discarding the cancel function.
+	ctx, _ := context.WithTimeout(context.Background(), time.Microsecond * 100)
+
+	_, err := Mine(ctx, pendingBlock)
+	if err != nil { t.Fatal(err) }
+}
 
