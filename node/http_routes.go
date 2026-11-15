@@ -52,6 +52,9 @@ type StatusRes struct{
 	// address: PeerNode map
 	// key: 127.0.0.1:8080 and value: PeerNode 
 	KnownPeers map[string]PeerNode `json:"peers_known"`
+
+	// waiting mempool
+	PendingTXs	[]database.Tx	`json:"pending_txs"`
 }
 
 type  RegisterPeerRes struct{
@@ -128,6 +131,7 @@ func statusHandler(
 		// this is block count, not block number!
 		Number: node.state.GetChainLen(),
 		KnownPeers: node.knownPeers,
+		PendingTXs: node.getPendingTXsAdArray(),
 	}
 
 	writeRes(res, response)
