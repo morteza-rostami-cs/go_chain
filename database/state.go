@@ -13,7 +13,7 @@ import (
 
 type State struct{
 	Balances	map[Account]uint
-	txMempool	[]Tx
+	// txMempool	[]Tx
 	dbFile	*os.File
 	// store the whole last block, cause we need it to do: Block.Number + 1, when creating a new block
 	latestBlock	*Block
@@ -125,7 +125,7 @@ func (self *State) copy() State {
 	s.latestBlock = self.latestBlock// not copy, is a pointer
 	s.latestBlockHash = self.latestBlockHash
 	// s.txMempool = make([]Tx, len(self.txMempool))
-	s.txMempool = []Tx{} // empty slice
+	// s.txMempool = []Tx{} // empty slice
 	s.Balances = make(map[Account]uint)
 
 	//copy balances
@@ -134,9 +134,9 @@ func (self *State) copy() State {
 	}
 
 	// copy transactions
-	for _, tx := range self.txMempool{
-		s.txMempool = append(s.txMempool, tx)
-	}
+	// for _, tx := range self.txMempool{
+	// 	s.txMempool = append(s.txMempool, tx)
+	// }
 
 	return s
 }
@@ -164,6 +164,20 @@ func applyBlock(b Block, s State) error {
 			s.latestBlockHash,
 			b.Header.Number,
 		)
+	}
+
+	// check the block hash, against mining rule =>if not valid, return
+	hash, err := b.Hash()
+	if err != nil {
+		return err
+	}
+
+	// check hash against mining rule
+	// the hash must be mined!!
+	// if this fails: - no state.Balances update - no writing to block.db
+	if !IsBlockHashValid(hash) {
+		// %x => [32]byte array as hex string
+		return fmt.Errorf("invalid block hash: %x", hash)
 	}
 
 	// if all validation passed => apply transactions to state now.
@@ -255,7 +269,7 @@ func NewStateFromDisk(dataDir string) (*State, error) {
 	// pointer to empty state
 	state := &State{
 		Balances: balances,// gen.Balances
-		txMempool: make([]Tx, 0),// empty slice, not nil		
+		// txMempool: make([]Tx, 0),// empty slice, not nil		
 		dbFile: dbFile,// pointer to db file
 
 		// book:: wants this
