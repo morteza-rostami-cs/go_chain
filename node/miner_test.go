@@ -1,7 +1,9 @@
 package node
 
 import (
+	"context"
 	"encoding/hex"
+	"fmt"
 	"go_chain/database"
 	"testing"
 )
@@ -26,3 +28,44 @@ func TestValidBlockHash(t *testing.T) {
 		t.Fatalf("hash %s is invalid. we need 6 zeros.", hexHash)
 	}
 }
+
+// test the mining algo -- make some block, just for test
+func createRandomPendingBlock() PendingBlock {
+	// this is a genesis block
+	return NewPendingBlock(
+		database.Hash{},// zeros parent
+		0, // block number => last block chain has
+		[]database.Tx{
+			database.NewTx("morteza", "babayaga", 3, ""),
+			database.NewTx("morteza", "morteza", 700, "reward"),
+		},
+	)
+}
+
+// test the mining algo
+func TestMine(t *testing.T) {
+	// get a pending block
+	var pendingBlock = createRandomPendingBlock() 
+
+	// get a context for stopping the goroutine
+	var ctx = context.Background() 
+
+	// call the goroutine Mine()
+	fmt.Println("start testing the mining algo")
+	minedBlock, err := Mine(ctx, pendingBlock)
+	if err != nil { t.Fatal(err) }
+
+	// we can rehash our mined block (validator node)
+	// notice: mined block at this point has the successful nonce, in its header. => so: it should give us a hash/hex with 6 zeros.
+	minedBlockHash, err := minedBlock.Hash()
+	if err != nil { t.Fatal(err) }
+	
+	// fmt.Println(minedBlockHash)
+	// check if the hash passes validation rule: to begin with 6 hex zeros
+	if !database.IsBlockHashValid(minedBlockHash) {
+		t.Fatal() // invalid block sent by miner
+	}
+
+}
+
+

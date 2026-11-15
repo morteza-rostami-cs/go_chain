@@ -98,5 +98,7 @@ go test ./node -test.v -test.run ^TestValidBlockHash
 # this also
 go test -v -run '^TestValidBlockHash$' ./node
 
+# run a specific test in a package
+go test -v -run TestMine ./node/
 
 ```
