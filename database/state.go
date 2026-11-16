@@ -76,6 +76,7 @@ func (self *State) AddBlocks(blocks []Block) error {
 
 // apply block to state and persists on disk.
 // returns hash, for next AddBlock() call !!
+// we call this after, we have the mined block, update state and persist in block.db
 func (self *State) AddBlock(b Block) (Hash, error) {
 
 	// copy state, we change the pendingState, in case one the operation fails, the main state does not change.

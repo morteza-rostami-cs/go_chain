@@ -60,6 +60,7 @@ func Mine(
 	for hash == nil || !database.IsBlockHashValid(*hash) {
 
 		// check for goroutine cancellation
+		// we need to be able to cancel this for_select loop => in case other nodes mined the same block sooner!
 		select {
 		case <-ctx.Done():
 			// cancel the mining, and return a emptyBlock, error
@@ -67,7 +68,7 @@ func Mine(
 			err := fmt.Errorf("mining cancelled. %s", ctx.Err())
 			return database.Block{}, err
 		default:
-			// keep mining, so select, does not wait for channel for ever
+			// keep mining, so select, does not wait for channel for ever (without default it blocks the loop)
 		}
 
 		// increment attempt and generate nonce
@@ -118,6 +119,8 @@ func Mine(
 
 // generate a random nonce
 // nonce: also can be just 0, 1, 2, 3 -- here we are using a random int
+// uint32 => has 4.29 billion values, 
+// and if nonce is random, nodes try different values, as opposed to all doing: 0, 1, 2, 3
 func generateNonce() uint32 {
 
 	// seed it with current time in nano seconds

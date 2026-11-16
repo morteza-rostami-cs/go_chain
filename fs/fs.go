@@ -53,3 +53,9 @@ func homeDir() string {
 	// fall back
 	return ""
 }
+
+// we use this for deleting certain test results and so on
+func RemoveDir(path string) error {
+	// remove all the files and folders in the path
+	return os.RemoveAll(path)
+}
