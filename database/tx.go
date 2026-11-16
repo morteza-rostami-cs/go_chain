@@ -57,6 +57,10 @@ func NewTx(
 		To: to, 
 		Value: value, 
 		Data: data,
-		Time: uint64(time.Now().Unix()),
+		// this does not capture small time difference
+		// Time: uint64(time.Now().Unix()),
+
+		// we will use nano seconds
+		Time: uint64(time.Now().UnixNano()),
 	}
 }
