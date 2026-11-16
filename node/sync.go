@@ -102,8 +102,16 @@ func (self *Node) doSync() {
 			fmt.Printf("ERROR: %s\n", err)
 			continue// move to next on fail
 		}
+
+		// sync mempool txs
+		if err := self.syncPendingTXs(peer, status.PendingTXs); err != nil {
+			fmt.Printf("ERROR: %s\n", err)
+			continue
+		}
 	}
 }
+
+
 
 func (self *Node) syncKnownPeers(
 	// peer PeerNode,
@@ -192,10 +200,29 @@ func (self *Node) syncBlocks(
 
 		if err != nil { return err }
 
-		// add a patch of blocks to our block.db and update state.Balances
-		if	err := self.state.AddBlocks(blocks); err != nil {
-			return err
+		// add new blocks from peer into state and block.db, but also send them through channel, so we stop mining
+		if len(blocks) > 0 {
+			for _, block := range blocks {
+				_, err := self.state.AddBlock(block)
+				if err != nil { return err }
+
+				// send to miner, stop if your mining this block, it is already mined by others
+				self.newSyncedBlocks <-block
+			}
 		}
+	}
+	return nil
+}
+
+// sync pending txs
+func (self *Node) syncPendingTXs(
+	peer PeerNode,
+	txs []database.Tx,
+) error {
+	// basically: we go over our peer txs mempool and add each to our mempool, if have not seen it before
+	for _, tx := range txs {
+		err := self.AddPendingTX(tx, peer)
+		if err != nil { return err }
 	}
 	return nil
 }
