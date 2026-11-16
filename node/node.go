@@ -78,7 +78,8 @@ type Node struct{
 
 	// signals coming form network
 
-	// nodes can send a block, trough channel => to say that i mined this first => you stop! 
+	// we get the mined block from peer (http), we use this channel, to send a signal to our miner, to stop!
+	// we use channel, cause: miner is inside a goroutine.
 	newSyncedBlocks	chan	database.Block
 	// channel:: receive pendingTxs, that other nodes are registering and broadcasting
 	newPendingTXs	chan	database.Tx
@@ -237,7 +238,8 @@ func (self *Node) mine(ctx context.Context) error {
 			// goroutine: every x second, run a goroutine per miner process, that checks for tx mempool
 			go func() {
 				// if: mempool has txs
-				if len(self.pendingTXs) > 0 {
+				// also: if we already mining: return
+				if len(self.pendingTXs) > 0 && !self.isMining {
 					// set the node to mining
 					self.isMining = true
 					// defer the shutdown of miner
@@ -275,6 +277,11 @@ func (self *Node) Run(ctx context.Context) error {
 
 	// store a pointer to state on node
 	self.state = state // set the state before .sync()
+
+	// print blockchain state
+	fmt.Println("Blockchain state:")
+	fmt.Printf("	- height: %d\n", self.state.LatestBlock().Header.Number)
+	fmt.Printf("	- hash: %s\n", self.state.LatestBlockHash().Hex())
 
 	// goroutine: check for txs in mempool every x second, and spin up miner goroutines
 	go self.mine(ctx)
@@ -325,8 +332,24 @@ func (self *Node) Run(ctx context.Context) error {
 	)
 
 	// start the server
-	return http.ListenAndServe(
-		// address listen on port :8080, on all available network interfaces
-		fmt.Sprintf("%s:%d", self.info.IP, self.info.Port),
-		nil)// nil means "use http.DefaultServeMux" — the global mux we just registered our two handlers into.
+	// return http.ListenAndServe(
+	// 	// address listen on port :8080, on all available network interfaces
+	// 	fmt.Sprintf("%s:%d", self.info.IP, self.info.Port),
+	// 	nil)// nil means "use http.DefaultServeMux" — the global mux we just registered our two handlers into.
+
+	// get a http server pointer
+	server := &http.Server{
+		Addr: fmt.Sprintf(":%d", self.info.Port),
+	}
+
+	// this is our control, over shutting down of the http server.
+	go func() {
+		// block this goroutine, until global cancellation
+		<-ctx.Done()
+		// then close server
+		_ = server.Close()
+	}()
+
+	// this does not return, until .Close(), this blocks and keeps the http server alive.
+	return server.ListenAndServe()
 }

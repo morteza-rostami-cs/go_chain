@@ -13,7 +13,6 @@ import (
 
 type State struct{
 	Balances	map[Account]uint
-	// txMempool	[]Tx
 	dbFile	*os.File
 	// store the whole last block, cause we need it to do: Block.Number + 1, when creating a new block
 	latestBlock	*Block
@@ -125,19 +124,12 @@ func (self *State) copy() State {
 	s.hasGenesisBlock = self.hasGenesisBlock
 	s.latestBlock = self.latestBlock// not copy, is a pointer
 	s.latestBlockHash = self.latestBlockHash
-	// s.txMempool = make([]Tx, len(self.txMempool))
-	// s.txMempool = []Tx{} // empty slice
 	s.Balances = make(map[Account]uint)
 
 	//copy balances
 	for acc, balance := range self.Balances{
 		s.Balances[acc] = balance
 	}
-
-	// copy transactions
-	// for _, tx := range self.txMempool{
-	// 	s.txMempool = append(s.txMempool, tx)
-	// }
 
 	return s
 }
@@ -270,7 +262,6 @@ func NewStateFromDisk(dataDir string) (*State, error) {
 	// pointer to empty state
 	state := &State{
 		Balances: balances,// gen.Balances
-		// txMempool: make([]Tx, 0),// empty slice, not nil		
 		dbFile: dbFile,// pointer to db file
 
 		// book:: wants this
