@@ -6,7 +6,11 @@ import (
 	"fmt"
 	database "go_chain/database"
 	"net/http"
+	"time"
 )
+
+// check fo mempool txs, every x second => ticker
+const miningIntervalTicker = 10 * time.Second
 
 // http port
 const DefaultIP = "127.0.0.1"
@@ -184,6 +188,77 @@ func (self *Node) getPendingTXsAdArray() []database.Tx {
 	return txs
 }
 
+/*
+# pack pending txs from mempool, into a block
+# run the miner on block
+# save the mine block, in state.Balances and block.db
+*/
+func (self *Node) minePendingTXs(ctx context.Context) error {
+
+	// pack mempool txs into a block
+	var blockToMine = NewPendingBlock(
+		self.state.LatestBlockHash(),// parent
+		self.state.NextBlockNumber(), // blockNumber
+		// pack all currently available txs inside of the mempool
+		self.getPendingTXsAdArray(),
+	)
+
+	// mine the pending block
+	minedBlock, err := Mine(ctx, blockToMine)
+	if err != nil { return err }
+
+	// add mined block to block.db
+	_, err = self.state.AddBlock(minedBlock)
+	if err != nil { return err }
+
+	// remove from pool and archive
+	self.removeMinedPendingTXs(minedBlock)
+
+	return nil
+}
+
+// remove tx from mempool and archive it
+func (self *Node) removeMinedPendingTXs(block database.Block) {
+
+}
+
+// goroutine:
+// runs a loop and check for mempool txs to mine
+func (self *Node) mine(ctx context.Context) error {
+	// sends a signal through channel ticker.C, every x seconds
+	ticker := time.NewTicker(miningIntervalTicker)
+
+	defer ticker.Stop()// later clean up
+
+	// every x seconds, we check for txs and spin up a new goroutine miner
+	for {
+		select{
+		case <-ticker.C:
+			// goroutine: every x second, run a goroutine per miner process, that checks for tx mempool
+			go func() {
+				// if: mempool has txs
+				if len(self.pendingTXs) > 0 {
+					// set the node to mining
+					self.isMining = true
+					// defer the shutdown of miner
+					defer func() { self.isMining = false }()
+
+					// make pendingBlock, mine, add block
+					err := self.minePendingTXs(ctx)
+					if err != nil {
+						fmt.Printf("mining error: %s\n", err)
+					}
+				}
+			}()
+		// node shutdown clean up
+		case <-ctx.Done():
+			ticker.Stop()
+			return nil
+		}
+	}
+
+}
+
 // we pass one context into our Run() for all goroutines, to cancel everything on http server shutdown
 func (self *Node) Run(ctx context.Context) error {
 
@@ -200,6 +275,9 @@ func (self *Node) Run(ctx context.Context) error {
 
 	// store a pointer to state on node
 	self.state = state // set the state before .sync()
+
+	// goroutine: check for txs in mempool every x second, and spin up miner goroutines
+	go self.mine(ctx)
 
 	// sync() is a goroutine that runs in background for syncing network nodes together, we also: pass a context in there.
 	go self.sync(ctx) // for each node, we run one goroutine

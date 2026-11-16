@@ -154,6 +154,8 @@ type BlockFS struct{
 // RULE: A valid block hash must start with six hexadecimal zeroes.
 // hex digit = 4bits => 1 byte is 8bits => so: every 0 byte, holds 2 hex zeros => so: 3*2 = 6 => we need 6 hex zeros
 func IsBlockHashValid(hash Hash) bool {
+	// convert byte to hex string and compare 
+	//  hash[0] == 0x00 → "0"
 	var byte0 = fmt.Sprintf("%x", hash[0]) == "0"
 	var byte1 = fmt.Sprintf("%x", hash[1]) == "0"
 	var byte2 = fmt.Sprintf("%x", hash[2]) == "0"

@@ -22,6 +22,7 @@ func (self *Node) sync(ctx context.Context) error {
 	you could think of it as another goroutine that send time every 45 sec here inside sync() goroutine.
 	*/ 
 	ticker := time.NewTicker(45 * time.Second)
+	defer ticker.Stop()// if sync done! clean up ticker
 	
 	// infinite loop,
 	for {
