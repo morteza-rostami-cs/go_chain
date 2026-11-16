@@ -220,7 +220,23 @@ func (self *Node) minePendingTXs(ctx context.Context) error {
 
 // remove tx from mempool and archive it
 func (self *Node) removeMinedPendingTXs(block database.Block) {
+	// if it is in the pool
+	if len(block.TXs) > 0 && len(self.pendingTXs) > 0 {
+		fmt.Println("updating in memory pending txs pool.")
+	}
 
+	// loop and archive txMempool transactions
+	for _, tx := range block.TXs {
+		txHash, _ := tx.Hash()
+
+		if _, exists := self.pendingTXs[txHash.Hex()]; exists {
+			fmt.Printf("\t-archiving mined TX: %s\n", txHash.Hex())
+
+			self.archivedTXs[txHash.Hex()] = tx
+			// delete from mempool map
+			delete(self.pendingTXs, txHash.Hex())
+		}
+	}
 }
 
 // goroutine:
