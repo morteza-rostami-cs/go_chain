@@ -10,7 +10,7 @@ import (
 )
 
 // check fo mempool txs, every x second => ticker
-const miningIntervalTicker = 10 * time.Second
+const miningIntervalSeconds = 10
 
 // http port
 const DefaultIP = "127.0.0.1"
@@ -226,8 +226,14 @@ func (self *Node) removeMinedPendingTXs(block database.Block) {
 // goroutine:
 // runs a loop and check for mempool txs to mine
 func (self *Node) mine(ctx context.Context) error {
+
+	//context for stopping the current miner, not the entire mining loop
+	var miningCtx context.Context
+	var stopCurrentMiner context.CancelFunc
+
 	// sends a signal through channel ticker.C, every x seconds
-	ticker := time.NewTicker(miningIntervalTicker)
+	// help some txs accumulating in the pool, instead of one block per tx 
+	ticker := time.NewTicker(time.Second * miningIntervalSeconds)
 
 	defer ticker.Stop()// later clean up
 
@@ -236,6 +242,7 @@ func (self *Node) mine(ctx context.Context) error {
 		select{
 		case <-ticker.C:
 			// goroutine: every x second, run a goroutine per miner process, that checks for tx mempool
+			// also, we use go, to not block for_select loop
 			go func() {
 				// if: mempool has txs
 				// also: if we already mining: return
@@ -245,13 +252,32 @@ func (self *Node) mine(ctx context.Context) error {
 					// defer the shutdown of miner
 					defer func() { self.isMining = false }()
 
+					// creates a child/derived ctx, on the main ctx
+					//child		cancelFunction
+					miningCtx, stopCurrentMiner = context.WithCancel(ctx)
+
 					// make pendingBlock, mine, add block
-					err := self.minePendingTXs(ctx)
+					// inner select in Mine() ,can return on stopCurrentMiner()
+					err := self.minePendingTXs(miningCtx)
 					if err != nil {
 						fmt.Printf("mining error: %s\n", err)
 					}
 				}
 			}()
+
+		// signal from sync()_go, other nodes found the block, shutdown the miner, returns mined block from other nodes 
+		case block, _ := <-self.newSyncedBlocks:
+			if self.isMining {
+				// hash the block and print it
+				blockHash, _ := block.Hash()
+				fmt.Printf("\npeer mined next block '%s' faster, you stop! :(\n", blockHash.Hex())
+
+				// archive the block.txs (others mined it!)
+				self.removeMinedPendingTXs(block)
+				// shutdown miner
+				stopCurrentMiner() // stop child context
+			}
+
 		// node shutdown clean up
 		case <-ctx.Done():
 			ticker.Stop()
