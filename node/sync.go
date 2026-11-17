@@ -136,13 +136,15 @@ func (self *Node) joinKnownPeers(peer PeerNode) error {
 	// url to call and register
 	// /node/peer
 	var url = fmt.Sprintf(
-		"http://%s%s?%s=%s&%s=%d",
+		"http://%s%s?%s=%s&%s=%d&%s=%s",
 		peer.TcpAddress(),
 		endpointAddPeer,
 		endpointAddPeerQueryKeyIP,
 		self.info.IP,
 		endpointAddPeerQueryKeyPort,
 		self.info.Port,
+		endpointAddPeerQueryKeyMiner,
+		self.info.Account,
 	)
 
 	// call bootstrap /node/peer

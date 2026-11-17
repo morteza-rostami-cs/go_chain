@@ -193,6 +193,8 @@ func addPeerHandler(
 	// gets query params: /node/peer?ip=localhost&port=8081
 	var peerIP = req.URL.Query().Get(endpointAddPeerQueryKeyIP)
 	var peerPortRaw = req.URL.Query().Get(endpointAddPeerQueryKeyPort)
+	// peer miner account name
+	var minerRaw = req.URL.Query().Get(endpointAddPeerQueryKeyMiner)
 
 	// convert string to uint
 	peerPort, err := strconv.ParseUint(peerPortRaw, 10, 32)
@@ -206,6 +208,7 @@ func addPeerHandler(
 		peerIP, 
 		peerPort, 
 		false, // is_bootstrap
+		database.NewAccount(minerRaw),
 		true, // connected
 	)
 

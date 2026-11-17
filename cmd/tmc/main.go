@@ -11,6 +11,8 @@ import (
 
 // flag for passing the /data dir in commands
 const flagDataDir = "datadir"
+// command to define the miner
+const flagMiner = "miner"
 // we should pass --port for running each node
 const flagPort = "port"
 const flagIP = "ip"

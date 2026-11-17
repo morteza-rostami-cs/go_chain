@@ -20,7 +20,7 @@ func TestNode_Run(t *testing.T) {
 	if err != nil { t.Fatal(err) }
 
 	// run a Node
-	var node = New(dataDir, DefaultIP, DefaultHttpPort, PeerNode{})
+	var node = New(dataDir, DefaultIP, DefaultHttpPort, database.NewAccount(DefaultMiner), PeerNode{})
 
 	// a time out context, after 5 sec ctx.Done() channel closes
 	ctx, _ := context.WithTimeout(context.Background(), time.Second*5)
@@ -38,7 +38,13 @@ func TestNode_Mining(t *testing.T) {
 	err := fs.RemoveDir(dataDir)
 	if err != nil { t.Fatal(err) }
 
-	var node = New(dataDir, DefaultIP, DefaultHttpPort, PeerNode{})
+	var node = New(
+		dataDir, 
+		DefaultIP, 
+		DefaultHttpPort, 
+		database.NewAccount(DefaultMiner), 
+		PeerNode{},
+	)
 
 	// a 15 minutes timeout for our node, enough for some mining!
 	// 		function to shutdown node.Run()
@@ -58,7 +64,13 @@ func TestNode_Mining(t *testing.T) {
 
 		// same 8081 node, adds a tx to it's mempool
 		// so node 8082 => add a transaction to its mempool
-		var fromPeer = NewPeerNode(DefaultIP, DefaultHttpPort, false, true)
+		var fromPeer = NewPeerNode(
+			DefaultIP, 
+			DefaultHttpPort, 
+			false, 
+			database.NewAccount(DefaultMiner), 
+			true,
+		)
 		_ = node.AddPendingTX(tx, fromPeer)
 	}()
 
@@ -72,7 +84,13 @@ func TestNode_Mining(t *testing.T) {
 			2,
 			"",
 		)		
-		var fromPeer = NewPeerNode(DefaultIP, DefaultHttpPort, false, true)
+		var fromPeer = NewPeerNode(
+			DefaultIP, 
+			DefaultHttpPort, 
+			false, 
+			database.NewAccount(DefaultMiner), 
+			true,
+		)
 		_ = node.AddPendingTX(tx, fromPeer)
 	}()
 
@@ -80,16 +98,6 @@ func TestNode_Mining(t *testing.T) {
 	go func() {
 		ticker := time.NewTicker(10 * time.Second)
 
-		// for {
-		// 	select{
-		// 	case <-ticker.C:
-		// 		if node.state.GetChainLen() == 2 {
-		// 			fmt.Println("2 blocks mined! goodbye!")
-		// 			closeNodeFunc()// close node server
-		// 			return
-		// 		}
-		// 	}
-		// }
 		for range ticker.C {
 			if node.state.GetChainLen() == 2 {
 				fmt.Println("2 block mined. goodbye!")
@@ -118,20 +126,37 @@ func TestNode_MiningStopsOnNewSyncedBlock(t *testing.T) {
 
 	// channel for errors coming from goroutines
 	errCh := make(chan error, 1)
+	// wait for balance check
+	var balanceDone = make(chan struct{})
 
-	var node = New(dataDir, DefaultIP, DefaultHttpPort, PeerNode{})
+	// two accounts, one for each node.miner
+	var mortezaAcc = database.NewAccount("morteza") 
+	var babayagaAcc = database.NewAccount("babayaga")
+
+	var node = New(
+		dataDir,
+		DefaultIP, 
+		8082, 
+		babayagaAcc,
+		PeerNode{},// empty bootstrap
+	)
+
 	// context for node shutdown, 15 minutes
 	ctx, closeNode := context.WithCancel(
 		context.Background(), 
 		// time.Minute * 15,
 	)
 
+	/*
+	{"from":"morteza","to":"babayaga","value":1,"data":"","time":1794937655248871086}
+	*/ 
+
 	var tx = database.Tx{
 		From: database.NewAccount("morteza"),
 		To: database.NewAccount("babayaga"),
 		Value: 1,
 		// fixed time, so we can define a nonce, that passes mining rule
-		Time: 1579451695,
+		Time: 1794937655248871086,
 		Data: "",
 	}
 
@@ -142,23 +167,31 @@ func TestNode_MiningStopsOnNewSyncedBlock(t *testing.T) {
 		2,
 		"",
 	)
+	// hash second tx2
 	tx2Hash, _ := tx2.Hash()
 
-	// an already mined block
+	// an already mined block, we assume morteza mined this!
 	var validSyncedBlock = database.NewBlock(
 		database.Hash{},
 		1,
-		12612040,// nonce
-		1579451704,// time
+		3197136926,// nonce
+		1794937664,// time
+		mortezaAcc,// miner
 		[]database.Tx{tx},
 	)
 
-	// add two txs to the mempool
+	// morteza:: adds two txs to the mempool
 	go func() {
 		// sleep 8 sec
 		time.Sleep(time.Second * (miningIntervalSeconds - 2))
 
-		var fromPeer = NewPeerNode(DefaultIP, DefaultHttpPort, false, true) 
+		var fromPeer = NewPeerNode(
+			DefaultIP, 
+			DefaultHttpPort, 
+			false, 
+			mortezaAcc, 
+			true,
+		) 
 
 		// this one, our node start mining, but then we signal => it is already mined, so, stop!
 		err := node.AddPendingTX(tx, fromPeer)
@@ -186,8 +219,10 @@ func TestNode_MiningStopsOnNewSyncedBlock(t *testing.T) {
 		}
 
 		// add the mined block to block.db
+		fmt.Println("\nabout the add a new Block.")
 		_, err := node.state.AddBlock(validSyncedBlock)
 		if err != nil {
+			fmt.Println(err)
 			errCh <- fmt.Errorf("%w", err)
 			return
 		}
@@ -207,7 +242,7 @@ func TestNode_MiningStopsOnNewSyncedBlock(t *testing.T) {
 		// now only tx2, must be in mempool
 		_, onlyTx2Pending := node.pendingTXs[tx2Hash.Hex()]
 		// only one tx in pool, and it is tx2
-		if len(node.pendingTXs) != 1 && !onlyTx2Pending {
+		if len(node.pendingTXs) != 1 || !onlyTx2Pending {
 			// t.Fatal("something is fucked! tx1 is still in pool!")
 			errCh <- fmt.Errorf("fuck__ tx1 is still in pool")
 			return
@@ -229,14 +264,6 @@ func TestNode_MiningStopsOnNewSyncedBlock(t *testing.T) {
 		defer ticker.Stop()
 
 		for range ticker.C {
-			fmt.Println("====")
-			if node.state.LatestBlock() != nil {
-				fmt.Println(node.state.LatestBlock().Header.Number)
-			} else {
-				fmt.Println("node latest block is nil")
-				fmt.Println(node.state)
-			}
-			fmt.Println(node.state.GetChainLen())
 			if node.state.GetChainLen() == 2 {
 				fmt.Println("\n==============")
 				fmt.Println("two blocks mined. we are done!")
@@ -248,9 +275,50 @@ func TestNode_MiningStopsOnNewSyncedBlock(t *testing.T) {
 		}
 	}()
 
+	// another go, to check state.balances, to know who got paid the block reward
+	go func() {
+		time.Sleep(time.Second * 2)
+		// close channel at the end
+		defer close(balanceDone)
+
+		// get the starting balances
+		// currentNode is babayaga, and morteza mines the block
+		var startMortezaBalance = node.state.Balances[mortezaAcc] 
+		var startBabayagaBalance = node.state.Balances[babayagaAcc]
+
+		// wait for the timeout signal (after mining)
+		<-ctx.Done()
+
+		// get the balances after mining
+		var endMortezaBalance = node.state.Balances[mortezaAcc]
+		var endBabayagaBalance = node.state.Balances[babayagaAcc]
+
+		// expected balances => each have mined one block
+		var expectedMortezaBalance = startMortezaBalance - tx.Value - tx2.Value + database.BlockReward
+		var expectedBabayagaBalance = startBabayagaBalance + tx.Value + tx2.Value + database.BlockReward
+
+		if endMortezaBalance != expectedMortezaBalance {
+			errCh <-fmt.Errorf("morteza expected end balance is %d not %d", expectedMortezaBalance, endMortezaBalance)
+			return
+		}
+
+		if endBabayagaBalance != expectedBabayagaBalance {
+			errCh <-fmt.Errorf("BabaYaga expected end balance is %d not %d", expectedBabayagaBalance, endBabayagaBalance)
+			return
+		}
+
+		t.Logf("Starting morteza balance: %d", startMortezaBalance)
+		t.Logf("Starting BabaYaga balance: %d", startBabayagaBalance)
+		t.Logf("Ending morteza balance: %d", endMortezaBalance)
+		t.Logf("Ending BabaYaga balance: %d", endBabayagaBalance)
+	}()
 
 	// run node
 	_ = node.Run(ctx)
+
+   // wait for balance check
+	<-balanceDone
+
 	if node.state.GetChainLen() != 2 {
 		t.Fatal("something wrong.nigga! we did not mined 2 blocks!")
 	}

@@ -8,7 +8,7 @@ import (
 
 // versioning info constants
 const Major = "0"
-const Minor = "8"
+const Minor = "9"
 const Fix = "0"
 // description of this release
 // const Verbal = "TX Add && Balances List"
@@ -17,7 +17,8 @@ const Fix = "0"
 // const Verbal = "Flexible DataDir"
 // const Verbal = "HTTP API"
 // const Verbal = "Sync"
-const Verbal = "PoW"
+// const Verbal = "PoW"
+const Verbal = "PoW Reward"
 
 // a command should be a cobra.Command struct type
 

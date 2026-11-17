@@ -44,6 +44,7 @@ var migrateCmd = func() *cobra.Command {
 			genesisBlock := node.NewPendingBlock(
 				database.Hash{},//parent
 				state.NextBlockNumber(), // block number
+				database.NewAccount("morteza"),
 				txs,// transactions
 			)
 

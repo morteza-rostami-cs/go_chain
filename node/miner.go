@@ -14,18 +14,22 @@ type PendingBlock struct{
 	parent	database.Hash
 	number	uint64
 	time	uint64
+	// so:each pendingBlock, take its miner into mining process.
+	miner	database.Account
 	txs	[]database.Tx
 }
 
 func NewPendingBlock(
 	parent database.Hash,
 	number uint64,
+	miner	database.Account,
 	txs []database.Tx,
 ) PendingBlock {
 	return PendingBlock{
 		parent,
 		number,
 		uint64(time.Now().Unix()), // time
+		miner,
 		txs,
 	}
 }
@@ -90,6 +94,7 @@ func Mine(
 			pBlock.number, // block number
 			nonce, // generated nonce in each loop
 			pBlock.time,
+			pBlock.miner,// block miner
 			pBlock.txs,
 		)
 
@@ -109,6 +114,7 @@ func Mine(
 	fmt.Printf("\tHeight: '%v'\n", candidateBlock.Header.Number)
 	fmt.Printf("\tNonce: '%v'\n", candidateBlock.Header.Nonce)
 	fmt.Printf("\tCreated: '%v'\n", candidateBlock.Header.Time)
+	fmt.Printf("\tMiner: %v\n", candidateBlock.Header.Miner)
 	fmt.Printf("\tParent: '%v'\n\n", candidateBlock.Header.Parent.Hex())
 	fmt.Printf("\tAttempt: '%v'\n", attempt)
 	fmt.Printf("\tTime: %s\n\n", time.Since(start))

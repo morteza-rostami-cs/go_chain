@@ -12,6 +12,8 @@ import (
 // check fo mempool txs, every x second => ticker
 const miningIntervalSeconds = 10
 
+const DefaultMiner = "morteza"
+
 // http port
 const DefaultIP = "127.0.0.1"
 const DefaultHttpPort = 8081
@@ -21,6 +23,7 @@ const DefaultHttpPort = 8081
 const endpointAddPeer = "/node/peer"
 const endpointAddPeerQueryKeyIP = "ip"
 const endpointAddPeerQueryKeyPort = "port"
+const endpointAddPeerQueryKeyMiner = "miner"
 
 const endpointStatus = "/node/status"
 const endpointSync = "/node/sync"
@@ -35,8 +38,8 @@ type PeerNode struct{
 	Port uint64 `json:"port"`
 	// a bootstrap node, is an entry point into the network
 	IsBootstrap bool `json:"is_bootstrap"`
-	// is this node an active participant, in network
-	// IsActive bool `json:"is_active"`
+	// miner account
+	Account	database.Account	`json:"account"`
 
 	//private, no json
 	connected	bool //our we connected to this peer?
@@ -47,9 +50,10 @@ func NewPeerNode(
 	ip string, 
 	port uint64, 
 	isBootstrap bool,
+	acc database.Account,
 	connected bool,
 ) PeerNode {
-	return PeerNode{ip, port, isBootstrap, connected}
+	return PeerNode{ip, port, isBootstrap, acc, connected}
 }
 // PeerNode methods
 
@@ -95,6 +99,7 @@ func New(
 	dataDir string, 
 	ip	string,
 	port uint64, 
+	acc	database.Account,
 	bootstrap PeerNode,
 ) *Node {
 
@@ -103,7 +108,7 @@ func New(
 
 	return &Node{
 		dataDir: dataDir,
-		info: NewPeerNode(ip, port, false, false),
+		info: NewPeerNode(ip, port, false, acc, false),
 		// state: is stored inside Run() method
 		knownPeers: peers,
 
@@ -200,6 +205,8 @@ func (self *Node) minePendingTXs(ctx context.Context) error {
 	var blockToMine = NewPendingBlock(
 		self.state.LatestBlockHash(),// parent
 		self.state.NextBlockNumber(), // blockNumber
+		// account of current node mining
+		self.info.Account,
 		// pack all currently available txs inside of the mempool
 		self.getPendingTXsAdArray(),
 	)

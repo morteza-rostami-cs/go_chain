@@ -11,6 +11,8 @@ import (
 	// "fmt"
 )
 
+const BlockReward = 100
+
 // sha-256 always produces a 256-bit hash
 // we can compare Hash == Hash
 type Hash [32]byte
@@ -97,6 +99,8 @@ type BlockHeader struct{
 
 	//Unix timestamps, block created at
 	Time	uint64 `json:"time"`
+	// who mined this block, miner becomes part of the blockHash.
+	Miner	Account	`json:"miner"`
 }
 
 type Block struct{
@@ -112,10 +116,11 @@ func NewBlock(
 	number uint64,
 	nonce uint32,
 	time uint64, 
+	miner	Account,
 	txs []Tx,
 ) Block {
 	return Block{
-		BlockHeader{parent, number, nonce, time},
+		BlockHeader{parent, number, nonce, time, miner},
 		txs,
 	}
 }

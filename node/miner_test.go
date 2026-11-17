@@ -44,11 +44,12 @@ func TestInvalidBlockHash(t *testing.T) {
 }
 
 // test the mining algo -- make some block, just for test
-func createRandomPendingBlock() PendingBlock {
+func createRandomPendingBlock(miner database.Account) PendingBlock {
 	// this is a genesis block
 	return NewPendingBlock(
 		database.Hash{},// zeros parent
 		0, // block number => last block chain has
+		miner,
 		[]database.Tx{
 			database.NewTx("morteza", "babayaga", 3, ""),
 			database.NewTx("morteza", "morteza", 700, "reward"),
@@ -59,7 +60,8 @@ func createRandomPendingBlock() PendingBlock {
 // test the mining algo
 func TestMine(t *testing.T) {
 	// get a pending block
-	var pendingBlock = createRandomPendingBlock() 
+	var miner = database.NewAccount(DefaultMiner)
+	var pendingBlock = createRandomPendingBlock(miner) 
 
 	// get a context for stopping the goroutine
 	var ctx = context.Background() 
@@ -80,11 +82,16 @@ func TestMine(t *testing.T) {
 		t.Fatal() // invalid block sent by miner
 	}
 
+	// check if the miner is the same
+	if minedBlock.Header.Miner != miner {
+		t.Fatal("mined block miner, should be equal miner from pending block.")
+	}
 }
 
 // test: with passing a context cancellation timeout, into our goroutine
 func TestMineWithTimeout(t *testing.T) {
-	pendingBlock := createRandomPendingBlock()
+	var miner = database.NewAccount(DefaultMiner)
+	pendingBlock := createRandomPendingBlock(miner)
 
 	// our goroutine times out after a certain time
 	// we are discarding the cancel function.

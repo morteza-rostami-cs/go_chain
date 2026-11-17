@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"go_chain/database"
 	"go_chain/node"
 	"os"
 
@@ -21,6 +22,7 @@ func runCmd() *cobra.Command {
 
 			ip, _ := cmd.Flags().GetString(flagIP)
 			port, _ := cmd.Flags().GetUint64(flagPort)
+			miner, _ := cmd.Flags().GetString(flagMiner)
 			
 			fmt.Println("Launching TMC node and its http api.")
 
@@ -32,6 +34,7 @@ func runCmd() *cobra.Command {
 				// so, all nodes have 8081, can connect register them self an pick up other peers.
 				node.DefaultHttpPort, // 8081 is the main bootstrap for now.				
 				true,// is_bootstrap
+				database.NewAccount("morteza"),
 				false,// connected
 			)
 
@@ -40,7 +43,9 @@ func runCmd() *cobra.Command {
 				getDataDirFromCmd(cmd), 
 				// ip
 				ip,
-				port, 
+				port,
+				// we define miner from commandline
+				database.Account(miner),
 				bootstrap,
 			)
 
@@ -58,6 +63,8 @@ func runCmd() *cobra.Command {
 
 	// register --datadir flag
 	addDefaultRequiredFlags(runCmd)
+	// register --miner flag
+	runCmd.Flags().String(flagMiner, node.DefaultMiner, "miner account of this node, to receive block reward.")
 
 	// register port command
 	runCmd.Flags().Uint64(

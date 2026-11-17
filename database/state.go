@@ -176,7 +176,12 @@ func applyBlock(b Block, s State) error {
 	}
 
 	// if all validation passed => apply transactions to state now.
-	return applyTXs(b.TXs, &s)
+	err = applyTXs(b.TXs, &s)
+
+	// after block is mined and applied
+	// give reward to the miner
+	s.Balances[b.Header.Miner] += BlockReward
+	return nil
 }
 
 // loop and apply transactions
