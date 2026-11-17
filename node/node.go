@@ -322,7 +322,7 @@ func (self *Node) Run(ctx context.Context) error {
 
 	// print blockchain state
 	fmt.Println("Blockchain state:")
-	fmt.Printf("	- height: %d\n", self.state.LatestBlock().Header.Number)
+	fmt.Printf("	- height: %d\n", self.state.CurrentBlockNumber())
 	fmt.Printf("	- hash: %s\n", self.state.LatestBlockHash().Hex())
 
 	// goroutine: check for txs in mempool every x second, and spin up miner goroutines

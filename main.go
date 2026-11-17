@@ -7,22 +7,37 @@ import (
 )
 
 func main() {
-	// [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
-	// we get all zeros => array of [32]byte
-	var hash = database.Hash{}
-	var hash2 database.Hash
-
-	if hash == hash2 {
-		fmt.Println("both are all zeros.")
+	
+	var tx = database.Tx{
+		From: database.NewAccount("morteza"),
+		To: database.NewAccount("babayaga"),
+		Value: 1,
+		// fixed time, so we can define a nonce, that passes mining rule
+		Time: 1579451695,
+		Data: "",
 	}
 
-	fmt.Println(hash)
+	var validSyncedBlock = database.NewBlock(
+		database.Hash{},
+		1,
+		12612040,// nonce
+		1579451704,// time
+		[]database.Tx{tx},
+	)
 
-	// if you want nil, you have to set a pointer to it
-	var pHash *database.Hash = nil
+	// hashed tx
+	hash, err := tx.Hash()
+	if err != nil {
+		fmt.Println(err)
+	}
 
-	fmt.Println(pHash)
-	pHash = &database.Hash{}
-	fmt.Println(pHash)
+	fmt.Println(hash.Hex())
 
+	// hash block, that holds that tx
+	blockHash, err := validSyncedBlock.Hash()
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	fmt.Println(blockHash.Hex())
 }

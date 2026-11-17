@@ -35,26 +35,27 @@ func (self *State) LatestBlock() *Block {
 }
 
 // get current BlockNumber
+// we make the chain 1-based
 func (self *State) CurrentBlockNumber() uint64 {
-	if self.latestBlock == nil { return uint64(0) }
+
+	// zero means => chain is empty
+	if self.latestBlock == nil {
+		return 0
+	}
+
+	// first block starts from 1
 	return self.latestBlock.Header.Number
 }
 
 // what should be the next block number allowed
 func (self *State) NextBlockNumber() uint64 {
-	// if no block (chain empty): 0
-	// if block: blockNum + 1
-	if !self.hasGenesisBlock { return uint64(0) }
-	return self.latestBlock.Header.Number + 1
+	return self.CurrentBlockNumber() + 1
 }
 
-// our chain is 0 based, so: 0, 1, 2, 3
 // return the length of chain
 func (self *State) GetChainLen() uint64 {
-	// no block on chain yet
-	if self.latestBlock == nil { return uint64(0) }	
-	// zero based length is always 1 behind
-	return self.latestBlock.Header.Number + 1
+	// block number also is the length, cause: we start form 1, 2, 3
+	return self.CurrentBlockNumber()
 }
 
 // apply a path of blocks, txs => to balances and mempool
@@ -99,20 +100,22 @@ func (self *State) AddBlock(b Block) (Hash, error) {
 
 	fmt.Printf("Persisting new block to disk.")
 	fmt.Printf("\t%s\n", blockFsJson[len(blockFsJson)-100:])
-
+	
 	// write blockFs to the block.db file
 	blockFsJson = append(blockFsJson, '\n')
 	_, err = self.dbFile.Write(blockFsJson)
 	if err != nil { return Hash{}, err }
-
+	
 	// set the state to pending state
 	// if: blocks successfully persist => set the main state
 	self.Balances = pendingState.Balances
 	self.latestBlockHash = blockHash
-
+	
 	lastBlock := b // copy block
 	self.latestBlock = &lastBlock // store a pointer
 	self.hasGenesisBlock = true
+
+	fmt.Printf("\n __new__block__number__:: %d", self.LatestBlock().Header.Number)
 
 	return blockHash, nil
 }

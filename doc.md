@@ -105,4 +105,7 @@ go test -v -run TestMine ./node/
 
 go build ./...
 
+# to only run a specific test, not only the ones that passes regex
+go test -v -run '^TestNode_Mining$' ./node/
+
 ```
