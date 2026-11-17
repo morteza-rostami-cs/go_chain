@@ -17,6 +17,7 @@ var migrateCmd = func() *cobra.Command {
 		Use: "migrate",
 		Short: "Migrates the blockchain database according to new business rules.",
 		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println("\n == migration command start == \n")
 			// dataDir, _ := cmd.Flags().GetString(flagDataDir)
 
 			state, err := database.NewStateFromDisk(getDataDirFromCmd(cmd))
@@ -42,7 +43,7 @@ var migrateCmd = func() *cobra.Command {
 			// genesis block, as a pending block
 			genesisBlock := node.NewPendingBlock(
 				database.Hash{},//parent
-				0, // block number
+				state.NextBlockNumber(), // block number
 				txs,// transactions
 			)
 

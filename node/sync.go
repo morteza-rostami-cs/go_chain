@@ -21,7 +21,7 @@ func (self *Node) sync(ctx context.Context) error {
 	Ticker => sends time, through ticker.C channel.
 	you could think of it as another goroutine that send time every 45 sec here inside sync() goroutine.
 	*/ 
-	ticker := time.NewTicker(45 * time.Second)
+	ticker := time.NewTicker(8 * time.Second)
 	defer ticker.Stop()// if sync done! clean up ticker
 	
 	// infinite loop,
@@ -63,7 +63,7 @@ func (self *Node) doSync() {
 			continue
 		}
 
-		fmt.Printf("searching from node: %s for peers and blocks.", peer.TcpAddress())
+		fmt.Printf("\nsearching from node: %s for peers and blocks.\n", peer.TcpAddress())
 
 		// status{hash, number, knownPeers}
 		status, err := queryPeerStatus(peer)
@@ -72,7 +72,7 @@ func (self *Node) doSync() {
 
 			// if it fails to query /node/status, remove it
 			// we assume peer is not reachable (dead)
-			fmt.Printf("peer %s was removed from knownPeers\n", peer.TcpAddress())
+			fmt.Printf("\npeer %s was removed from knownPeers\n", peer.TcpAddress())
 			// peer unreachable!! if it comes online, it gets added later, for now just fuck off!
 			self.RemovePeer(peer)
 
@@ -110,8 +110,6 @@ func (self *Node) doSync() {
 		}
 	}
 }
-
-
 
 func (self *Node) syncKnownPeers(
 	// peer PeerNode,
@@ -188,7 +186,7 @@ func (self *Node) syncBlocks(
 	// if local chain is behind?
 	if localBlockCount < status.Number {
 		var newBlocksCount = status.Number - localBlockCount
-		fmt.Printf("found %d new blocks from peer %s\n", newBlocksCount, peer.TcpAddress())
+		fmt.Printf("\nfound %d new blocks from peer %s\n", newBlocksCount, peer.TcpAddress())
 
 		// fetch blocks from peer
 		// /node/sync?fromBlock=<our latest hash>

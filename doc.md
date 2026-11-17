@@ -108,4 +108,7 @@ go build ./...
 # to only run a specific test, not only the ones that passes regex
 go test -v -run '^TestNode_Mining$' ./node/
 
+rm -rf .tmc-node .tmc-node2/ .tmc-node3/
+
+
 ```

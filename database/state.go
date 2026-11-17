@@ -37,7 +37,6 @@ func (self *State) LatestBlock() *Block {
 // get current BlockNumber
 // we make the chain 1-based
 func (self *State) CurrentBlockNumber() uint64 {
-
 	// zero means => chain is empty
 	if self.latestBlock == nil {
 		return 0
@@ -98,7 +97,7 @@ func (self *State) AddBlock(b Block) (Hash, error) {
 	blockFsJson, err := json.Marshal(blockFs)
 	if err != nil { return Hash{}, nil }
 
-	fmt.Printf("Persisting new block to disk.")
+	fmt.Printf("\nPersisting new block to disk.")
 	fmt.Printf("\t%s\n", blockFsJson[len(blockFsJson)-100:])
 	
 	// write blockFs to the block.db file

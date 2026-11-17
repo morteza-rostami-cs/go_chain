@@ -38,7 +38,6 @@ func Mine(
 	ctx context.Context,
 	pBlock PendingBlock,
 ) (database.Block, error) {
-
 	// check for no transactions
 	if len(pBlock.txs) == 0 {
 		err := fmt.Errorf("mining empty blocks is not allowed")

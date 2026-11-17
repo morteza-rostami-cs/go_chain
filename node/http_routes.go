@@ -125,7 +125,6 @@ func statusHandler(
 ){
 
 	// check for the latest block, because: if block.db is empty, then: sate.LatestBlock() returns: nil
-
 	response := StatusRes{
 		Hash: node.state.LatestBlockHash(),
 		// this is block count, not block number!
