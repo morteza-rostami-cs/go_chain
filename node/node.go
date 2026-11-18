@@ -125,6 +125,10 @@ func New(
 
 // Node method
 
+func (self *Node) LatestBlockHash() database.Hash {
+	return self.state.LatestBlockHash()
+}
+
 // node peer helpers
 
 func (self *Node) AddPeer(peer PeerNode) {
@@ -307,7 +311,6 @@ func (self *Node) mine(ctx context.Context) error {
 			return nil
 		}
 	}
-
 }
 
 // we pass one context into our Run() for all goroutines, to cancel everything on http server shutdown

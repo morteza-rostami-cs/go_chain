@@ -110,5 +110,6 @@ go test -v -run '^TestNode_Mining$' ./node/
 
 rm -rf .tmc-node .tmc-node2/ .tmc-node3/
 
+tmc migrate --datadir=./data --port=8081 --ip=127.0.0.1 --miner=morteza
 
 ```

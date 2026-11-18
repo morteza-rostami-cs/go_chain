@@ -5,7 +5,7 @@ import (
 	"fmt"
 	database "go_chain/database"
 	"go_chain/node"
-	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -19,51 +19,63 @@ var migrateCmd = func() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			fmt.Println("\n == migration command start == \n")
 			// dataDir, _ := cmd.Flags().GetString(flagDataDir)
+			ip, _ := cmd.Flags().GetString(flagIP)
+			port, _ := cmd.Flags().GetUint64(flagPort)
+			miner, _ := cmd.Flags().GetString(flagMiner)
 
-			state, err := database.NewStateFromDisk(getDataDirFromCmd(cmd))
-			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				os.Exit(1)
-			}
-			defer state.Close()
-
-			// all transactions
-			var txs = []database.Tx{
-				database.NewTx("morteza", "morteza", 3, ""),
-				database.NewTx("morteza", "morteza", 700, "reward"),
-				database.NewTx("morteza", "babayaga", 2000, ""),
-				database.NewTx("morteza", "morteza", 100, "reward"),
-				database.NewTx("babayaga", "morteza", 1, ""),
-				database.NewTx("babayaga", "caesar", 1000, ""),
-				database.NewTx("babayaga", "morteza", 50, ""),
-				database.NewTx("morteza", "morteza", 600, "reward"),
-				database.NewTx("morteza", "morteza", 24700, "reward"),				
-			}
-
-			// genesis block, as a pending block
-			genesisBlock := node.NewPendingBlock(
-				database.Hash{},//parent
-				state.NextBlockNumber(), // block number
-				database.NewAccount("morteza"),
-				txs,// transactions
+			// peer node
+			var peer = node.NewPeerNode(
+				node.DefaultIP, //ip
+				node.DefaultHttpPort, // port
+				true, // isBootstrap
+				database.NewAccount("morteza"), // account
+				false, // connected
 			)
 
-			// now mine the block
-			minedBlock, err := node.Mine(context.Background(), genesisBlock)
-			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
-			}
+			// create a node and let it mine
+			var node = node.New(
+				getDataDirFromCmd(cmd), //dataDir
+				ip,// ip
+				port,// port
+				database.NewAccount(miner),// acc
+				peer,// bootstrap
+			)
 
-			// add the mined block to block.db and state.Balances
-			_, err = state.AddBlock(minedBlock)
+			// add transactions to node pool
+			node.AddPendingTX(database.NewTx("morteza", "morteza", 3, ""), peer)
+			node.AddPendingTX(database.NewTx("morteza", "babayaga", 2000, ""), peer)
+			node.AddPendingTX(database.NewTx("babayaga", "morteza", 1, ""), peer)
+			node.AddPendingTX(database.NewTx("babayaga", "caesar", 1000, ""), peer)
+			node.AddPendingTX(database.NewTx("babayaga", "morteza", 50, ""), peer)
+
+			// node timeout and shutdown
+			ctx, closeNode := context.WithTimeout(context.Background(), time.Minute * 15)
+
+			// check for mined block and shutdown node server
+			go func() {
+				ticker := time.NewTicker(time.Second * 10)
+
+				for range ticker.C {
+					// if one block at least mined => stop
+					if !node.LatestBlockHash().IsEmpty() {
+						closeNode()
+						return
+					}					
+				}
+			}()
+
+			err := node.Run(ctx)
 			if err != nil {
 				fmt.Println(err)
-				os.Exit(1)
 			}
 		},
 	}
 
 	addDefaultRequiredFlags(migrateCmd)
+
+	migrateCmd.Flags().String(flagMiner, node.DefaultMiner, "miner account of this node to receive block rewards.")
+	migrateCmd.Flags().String(flagIP, node.DefaultIP, "ip for this peer")
+	migrateCmd.Flags().Uint64(flagPort, node.DefaultHttpPort, "port for this peer")
+
 	return migrateCmd
 }()
