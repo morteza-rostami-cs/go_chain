@@ -116,4 +116,14 @@ go get github.com/ethereum/go-ethereum/console
 go mod tidy
 go run .
 
+# shit happened, so changed github ssh port
+
+nano ~/.ssh/config
+
+ssh -T git@github.com
+
+tmc wallet pk-print --datadir=./data --keystore=./data/keystore/UTC--2026-11-18T13-05-55.791906653Z--eb698b87894d918666f05465bdca59795ef9b5bb
+
+
+
 ```

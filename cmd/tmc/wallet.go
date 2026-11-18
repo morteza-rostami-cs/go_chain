@@ -6,11 +6,21 @@ import (
 	"go_chain/wallet"
 	"os"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/console/prompt"
 	"github.com/spf13/cobra"
 )
+
+// add --keystore flag to any command
+func addKeystoreFlag(cmd *cobra.Command) {
+	cmd.Flags().String(flagKeystoreFile, "", "keystore file")
+	// add required flags -> --datadir=./
+	addDefaultRequiredFlags(cmd)
+	//make --keystore flag required 
+	_ = cmd.MarkFlagRequired(flagKeystoreFile)
+}
 
 //tbb wallet new-account --datadir=$HOME/.c12_crypto
 func walletCmd() *cobra.Command {
@@ -25,6 +35,9 @@ func walletCmd() *cobra.Command {
 
 	// register: new-account
 	walletCmd.AddCommand(walletNewAccountCmd())
+
+	// register: pk-print
+	walletCmd.AddCommand(walletPrintPrivateKeyCmd())
 
 	return walletCmd
 }
@@ -99,6 +112,43 @@ func getPassPhrase(
 	}
 	return password
 }
+
+// a command to read, keystore file, and decrypt the private key and print it
+func walletPrintPrivateKeyCmd() *cobra.Command {
+	var cmd = &cobra.Command{
+		Use: "pk-print",
+		Short: "decrypt keystore file and prints the private + public keys.",
+		Run: func(cmd *cobra.Command, args []string) {
+
+			// path to keystore file
+			ksFile, _ := cmd.Flags().GetString(flagKeystoreFile)
+			// get user password
+			var password = getPassPhrase("please enter a password to decrypt the keystore file: ", false)
+
+			// read the file
+			keyJson, err := os.ReadFile(ksFile)
+			if err != nil {
+				fmt.Println(err.Error())
+				os.Exit(1)
+			}
+			
+			// decrypt keystore file, 
+			// decrypt private_key using passphrase
+			key, err := keystore.DecryptKey(keyJson, password)
+			if err != nil {
+				fmt.Println(err.Error())
+				os.Exit(1)
+			}
+
+			// print private key and public keys
+			spew.Dump(key)
+		},
+	}
+
+	addKeystoreFlag(cmd)
+	return cmd
+}
+
 
 /*
 

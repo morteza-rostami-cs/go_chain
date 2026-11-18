@@ -9,6 +9,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const flagKeystoreFile = "keystore"
+
 // flag for passing the /data dir in commands
 const flagDataDir = "datadir"
 // command to define the miner
