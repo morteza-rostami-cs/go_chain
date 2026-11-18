@@ -185,6 +185,24 @@ func (self *Node) syncBlocks(
 	// block count
 	var localBlockCount = self.state.GetChainLen() 	
 
+	// if peer has zero/no blocks, return
+	// latest block hash = [0 0 0 0 ...]
+	if status.Hash.IsEmpty() {
+		return nil
+	}
+
+	// if peer has less blocks than us, assume: they are behind
+	if status.Number < localBlockCount {
+		return nil
+	}
+
+	// check if both nodes have the genesis block
+	// peer height = 1 && current_node.state.latestBlockHash != empty, meaning: already has genesisBlock or more
+	if status.Number == 1 && !self.state.LatestBlockHash().IsEmpty() {
+		fmt.Println("\n == i have genesis, thanks! == \n")
+		return nil
+	}
+
 	// if local chain is behind?
 	if localBlockCount < status.Number {
 		var newBlocksCount = status.Number - localBlockCount
