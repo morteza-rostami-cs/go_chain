@@ -130,7 +130,7 @@ func statusHandler(
 		// this is block count, not block number!
 		Number: node.state.GetChainLen(),
 		KnownPeers: node.knownPeers,
-		PendingTXs: node.getPendingTXsAdArray(),
+		PendingTXs: node.getPendingTXsAsArray(),
 	}
 
 	writeRes(res, response)

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"sort"
 
 	// "io/fs"
 	"go_chain/fs"
@@ -186,6 +187,12 @@ func applyBlock(b Block, s *State) error {
 
 // loop and apply transactions
 func applyTXs(txs []Tx, s *State) error {
+
+	// sort txs by time
+	sort.Slice(txs, func(i, j int) bool {
+		return txs[i].Time < txs[j].Time 
+	})
+
 	for _, tx := range txs {
 		if err := applyTx(tx, s); err != nil { return err }
 	}

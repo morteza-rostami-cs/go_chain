@@ -189,11 +189,14 @@ func (self *Node) AddPendingTX(
 
 // memPool transactions map => return as an slice
 // for sending over http, we want transactions in a slice
-func (self *Node) getPendingTXsAdArray() []database.Tx {
-	var txs = make([]database.Tx, 0)// empty slice
+func (self *Node) getPendingTXsAsArray() []database.Tx {
+	var txs = make([]database.Tx, len(self.pendingTXs))// empty slice
 	// loop over the map, skip the key/hash
+	var i = 0
 	for _, tx := range self.pendingTXs {
-		txs = append(txs, tx)
+		// txs = append(txs, tx)
+		txs[i] = tx
+		i++
 	}
 	return txs
 }
@@ -212,7 +215,7 @@ func (self *Node) minePendingTXs(ctx context.Context) error {
 		// account of current node mining
 		self.info.Account,
 		// pack all currently available txs inside of the mempool
-		self.getPendingTXsAdArray(),
+		self.getPendingTXsAsArray(),
 	)
 
 	// mine the pending block
@@ -403,5 +406,12 @@ func (self *Node) Run(ctx context.Context) error {
 	}()
 
 	// this does not return, until .Close(), this blocks and keeps the http server alive.
-	return server.ListenAndServe()
+	err = server.ListenAndServe()
+
+	// handle server shutdown error
+	if err != http.ErrServerClosed {
+		return err
+	}
+
+	return nil
 }
