@@ -83,7 +83,7 @@ func (self *State) AddBlock(b Block) (Hash, error) {
 	pendingState := self.copy()
 
 	// apply block to state
-	if err := applyBlock(b, pendingState); err != nil{
+	if err := applyBlock(b, &pendingState); err != nil{
 		return Hash{}, err
 	}
 
@@ -138,7 +138,7 @@ func (self *State) copy() State {
 
 // validate and apply a block to state
 // take a copy of main state
-func applyBlock(b Block, s State) error {
+func applyBlock(b Block, s *State) error {
 	// // next block number ,we expect
 	var nextExpectedBlockNumber = s.NextBlockNumber()
 
@@ -176,7 +176,7 @@ func applyBlock(b Block, s State) error {
 	}
 
 	// if all validation passed => apply transactions to state now.
-	err = applyTXs(b.TXs, &s)
+	err = applyTXs(b.TXs, s)
 
 	// after block is mined and applied
 	// give reward to the miner
@@ -311,7 +311,13 @@ func NewStateFromDisk(dataDir string) (*State, error) {
 		// 	return nil, err
 		// }
 
-		if err := applyTXs(blockFs.Value.TXs, state); err != nil {
+		// if err := applyTXs(blockFs.Value.TXs, state); err != nil {
+		// 	return nil, err
+		// }
+
+		// use applyBlock => to replay the miner reward for each block also, every time we load the block.db file
+		err = applyBlock(blockFs.Value, state)
+		if err != nil {
 			return nil, err
 		}
 
