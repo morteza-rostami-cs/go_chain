@@ -112,4 +112,8 @@ rm -rf .tmc-node .tmc-node2/ .tmc-node3/
 
 tmc migrate --datadir=./data --port=8081 --ip=127.0.0.1 --miner=morteza
 
+go get github.com/ethereum/go-ethereum/console
+go mod tidy
+go run .
+
 ```

@@ -39,6 +39,9 @@ func main() {
 	tmcCmd.AddCommand(runCmd())// start node command
 	tmcCmd.AddCommand(migrateCmd)
 
+	// new account creation
+	tmcCmd.AddCommand(walletCmd())
+
 	err := tmcCmd.Execute()// read command and execute the corresponding operation 
 	if err != nil {
 		// prints to os.Stderr -- error messages
