@@ -23,18 +23,23 @@ func runCmd() *cobra.Command {
 			ip, _ := cmd.Flags().GetString(flagIP)
 			port, _ := cmd.Flags().GetUint64(flagPort)
 			miner, _ := cmd.Flags().GetString(flagMiner)
-			
+
+			// bootstrap --flags data
+			bootstrapIp, _ := cmd.Flags().GetString(flagBootstrapIp)
+			bootstrapPort, _ := cmd.Flags().GetUint64(flagBootstrapPort)
+			bootstrapAcc, _ := cmd.Flags().GetString(flagBootstrapAcc)
+
 			fmt.Println("Launching TMC node and its http api.")
 
 			// create one bootstrap node
 			// for now:: all nodes i start, will have 8081 as the initial bootstrap node.
 			bootstrap := node.NewPeerNode(
-				"127.0.0.1",
+				bootstrapIp,
 				// port + 1,// for now: node.port + 1 
 				// so, all nodes have 8081, can connect register them self an pick up other peers.
-				node.DefaultHttpPort, // 8081 is the main bootstrap for now.				
+				bootstrapPort, // 8081 is the main bootstrap for now.				
 				true,// is_bootstrap
-				database.NewAccount("morteza"),
+				database.NewAccount(bootstrapAcc),
 				false,// connected
 			)
 
@@ -45,7 +50,7 @@ func runCmd() *cobra.Command {
 				ip,
 				port,
 				// we define miner from commandline
-				database.Account(miner),
+				database.NewAccount(miner),
 				bootstrap,
 			)
 
@@ -79,6 +84,11 @@ func runCmd() *cobra.Command {
 		node.DefaultIP,
 		"exposed IP for communication with peers.",
 	)
+
+	// register bootstrap flags commands
+	runCmd.Flags().String(flagBootstrapIp, node.DefaultBootstrapIp, "default bootstrap server to interconnect peers")
+	runCmd.Flags().Uint64(flagBootstrapPort, node.DefaultBootstrapPort, "default bootstrap server port to interconnect peers")
+	runCmd.Flags().String(flagBootstrapAcc, node.DefaultBootstrapAcc, "default bootstrap account to interconnect peers")
 
 	return runCmd
 }

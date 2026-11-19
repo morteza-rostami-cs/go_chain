@@ -4,14 +4,27 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"time"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // account is just a string now
-type Account string
+// type Account string
+
+type Account = common.Address // alias
+// eth 20byte address
+// Account is a distinct type, with underlying type common.Address (meaning: it needs conversion)
+// type Account common.Address
 
 // create a new account with a value
+// func NewAccount(value string) Account {
+// 	return Account(value)
+// }
+
+// book does this => use: common.Address => instead of => Account (i keep an alias Account)
 func NewAccount(value string) Account {
-	return Account(value)
+	// turn a hex string to 20byte address
+	return common.HexToAddress(value)
 }
 
 // Transaction

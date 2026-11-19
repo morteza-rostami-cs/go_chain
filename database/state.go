@@ -188,8 +188,11 @@ func applyBlock(b Block, s *State) error {
 // loop and apply transactions
 func applyTXs(txs []Tx, s *State) error {
 
+	// copy transactions
+	sortedTXs := append([]Tx(nil), txs...)
 	// sort txs by time
-	sort.Slice(txs, func(i, j int) bool {
+	// !!! this was changing the txs order => and as a result, the persisted block hash!! (so i had to copy the slice first), so we apply the sort to state, and not to block.db
+	sort.Slice(sortedTXs, func(i, j int) bool {
 		return txs[i].Time < txs[j].Time 
 	})
 

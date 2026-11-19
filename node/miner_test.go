@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"go_chain/database"
+	"go_chain/wallet"
 	"testing"
 	"time"
 )
@@ -45,14 +46,18 @@ func TestInvalidBlockHash(t *testing.T) {
 
 // test the mining algo -- make some block, just for test
 func createRandomPendingBlock(miner database.Account) PendingBlock {
+
+	var mortezaAcc = database.NewAccount(wallet.MortezaAccount)
+	var babayagaAcc = database.NewAccount(wallet.BabaYagaAccount)
+
 	// this is a genesis block
 	return NewPendingBlock(
 		database.Hash{},// zeros parent
 		0, // block number => last block chain has
 		miner,
 		[]database.Tx{
-			database.NewTx("morteza", "babayaga", 3, ""),
-			database.NewTx("morteza", "morteza", 700, "reward"),
+			database.NewTx(mortezaAcc, babayagaAcc, 3, ""),
+			database.NewTx(mortezaAcc, mortezaAcc, 700, "reward"),
 		},
 	)
 }
@@ -83,7 +88,7 @@ func TestMine(t *testing.T) {
 	}
 
 	// check if the miner is the same
-	if minedBlock.Header.Miner != miner {
+	if minedBlock.Header.Miner.String() != miner.String() {
 		t.Fatal("mined block miner, should be equal miner from pending block.")
 	}
 }

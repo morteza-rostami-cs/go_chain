@@ -114,7 +114,7 @@ func Mine(
 	fmt.Printf("\tHeight: '%v'\n", candidateBlock.Header.Number)
 	fmt.Printf("\tNonce: '%v'\n", candidateBlock.Header.Nonce)
 	fmt.Printf("\tCreated: '%v'\n", candidateBlock.Header.Time)
-	fmt.Printf("\tMiner: %v\n", candidateBlock.Header.Miner)
+	fmt.Printf("\tMiner: %v\n", candidateBlock.Header.Miner.String())
 	fmt.Printf("\tParent: '%v'\n\n", candidateBlock.Header.Parent.Hex())
 	fmt.Printf("\tAttempt: '%v'\n", attempt)
 	fmt.Printf("\tTime: %s\n\n", time.Since(start))

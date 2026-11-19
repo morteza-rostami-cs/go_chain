@@ -2,13 +2,14 @@ package database
 
 import (
 	"fmt"
+	"go_chain/wallet"
 	"testing"
 )
 
 func TestTxHashStableAndDistinct(t *testing.T) {
 	tx1 := NewTx(
-		NewAccount("morteza"),
-		NewAccount("babayaga"),
+		NewAccount(wallet.MortezaAccount),
+		NewAccount(wallet.BabaYagaAccount),
 		5,
 		"",
 	)
@@ -27,8 +28,8 @@ func TestTxHashStableAndDistinct(t *testing.T) {
 
 	// a tx created at a different time
 	tx2 := NewTx(
-		NewAccount("morteza"),
-		NewAccount("babayaga"),
+		NewAccount(wallet.MortezaAccount),
+		NewAccount(wallet.BabaYagaAccount),
 		5,
 		"",
 	)

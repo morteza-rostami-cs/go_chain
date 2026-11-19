@@ -9,6 +9,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// flags for cmd bootstrap data
+const flagBootstrapAcc = "bootstrap-account"
+const flagBootstrapIp = "bootstrap-ip"
+const flagBootstrapPort = "bootstrap-port"
+
 const flagKeystoreFile = "keystore"
 
 // flag for passing the /data dir in commands

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	database "go_chain/database"
 	"go_chain/node"
+	"go_chain/wallet"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -25,10 +26,10 @@ var migrateCmd = func() *cobra.Command {
 
 			// peer node
 			var peer = node.NewPeerNode(
-				node.DefaultIP, //ip
-				node.DefaultHttpPort, // port
+				node.DefaultBootstrapIp, //ip
+				node.DefaultBootstrapPort, // port
 				true, // isBootstrap
-				database.NewAccount("morteza"), // account
+				database.NewAccount(node.DefaultBootstrapAcc), // account
 				false, // connected
 			)
 
@@ -41,12 +42,17 @@ var migrateCmd = func() *cobra.Command {
 				peer,// bootstrap
 			)
 
+			var mortezaAcc = database.NewAccount(wallet.MortezaAccount)
+			var babayagaAcc = database.NewAccount(wallet.BabaYagaAccount)
+			var caesarAcc = database.NewAccount(wallet.CaesarAccount)
+
 			// add transactions to node pool
-			node.AddPendingTX(database.NewTx("morteza", "morteza", 3, ""), peer)
-			node.AddPendingTX(database.NewTx("morteza", "babayaga", 2000, ""), peer)
-			node.AddPendingTX(database.NewTx("babayaga", "morteza", 1, ""), peer)
-			node.AddPendingTX(database.NewTx("babayaga", "caesar", 1000, ""), peer)
-			node.AddPendingTX(database.NewTx("babayaga", "morteza", 50, ""), peer)
+			node.AddPendingTX(
+				database.NewTx(mortezaAcc, mortezaAcc, 3, ""), peer)
+			node.AddPendingTX(database.NewTx(mortezaAcc, babayagaAcc, 2000, ""), peer)
+			node.AddPendingTX(database.NewTx(babayagaAcc, mortezaAcc, 1, ""), peer)
+			node.AddPendingTX(database.NewTx(babayagaAcc, caesarAcc, 1000, ""), peer)
+			node.AddPendingTX(database.NewTx(babayagaAcc, mortezaAcc, 50, ""), peer)
 
 			// node timeout and shutdown
 			ctx, closeNode := context.WithTimeout(context.Background(), time.Minute * 15)
@@ -73,6 +79,7 @@ var migrateCmd = func() *cobra.Command {
 
 	addDefaultRequiredFlags(migrateCmd)
 
+	// register flags, with default values
 	migrateCmd.Flags().String(flagMiner, node.DefaultMiner, "miner account of this node to receive block rewards.")
 	migrateCmd.Flags().String(flagIP, node.DefaultIP, "ip for this peer")
 	migrateCmd.Flags().Uint64(flagPort, node.DefaultHttpPort, "port for this peer")

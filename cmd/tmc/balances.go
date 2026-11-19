@@ -32,7 +32,6 @@ func balancesCmd() *cobra.Command {
 	return cmd
 }
 
-
 func balancesListCmd() *cobra.Command {
 
 	var cmd = &cobra.Command{
@@ -62,8 +61,8 @@ func balancesListCmd() *cobra.Command {
 	
 			// state.Balances :: map[Account]uint		
 			for account, balance := range state.Balances {
-				fmt.Printf("%s: %d\n", account, balance)
-			}		
+				fmt.Printf("%s: %d\n", account.String(), balance)
+			}
 		},
 	}
 

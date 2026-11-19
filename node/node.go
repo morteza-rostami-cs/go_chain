@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	database "go_chain/database"
+	"go_chain/wallet"
 	"net/http"
 	"time"
 )
@@ -12,7 +13,12 @@ import (
 // check fo mempool txs, every x second => ticker
 const miningIntervalSeconds = 10
 
-const DefaultMiner = "morteza"
+// default bootstrap node info
+const DefaultBootstrapIp = "127.0.0.1"
+const DefaultBootstrapPort = 8081
+const DefaultBootstrapAcc = wallet.MortezaAccount
+
+const DefaultMiner = wallet.MortezaAccount
 
 // http port
 const DefaultIP = "127.0.0.1"

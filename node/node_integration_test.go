@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"go_chain/database"
 	"go_chain/fs"
+	"go_chain/wallet"
 	"os"
 	"path/filepath"
 	"testing"
@@ -56,8 +57,8 @@ func TestNode_Mining(t *testing.T) {
 		time.Sleep(time.Second * 1)
 
 		var tx = database.NewTx(
-			database.NewAccount("morteza"),
-			database.NewAccount("babayaga"),
+			database.NewAccount(wallet.MortezaAccount),
+			database.NewAccount(wallet.BabaYagaAccount),
 			1,
 			"",
 		)
@@ -79,8 +80,8 @@ func TestNode_Mining(t *testing.T) {
 		// wait 30 sec
 		time.Sleep(time.Second * 30)
 		var tx = database.NewTx(
-			database.Account("morteza"),
-			database.Account("babayaga"),
+			database.NewAccount(wallet.MortezaAccount),
+			database.NewAccount(wallet.BabaYagaAccount),
 			2,
 			"",
 		)		
@@ -130,8 +131,8 @@ func TestNode_MiningStopsOnNewSyncedBlock(t *testing.T) {
 	var balanceDone = make(chan struct{})
 
 	// two accounts, one for each node.miner
-	var mortezaAcc = database.NewAccount("morteza") 
-	var babayagaAcc = database.NewAccount("babayaga")
+	var mortezaAcc = database.NewAccount(wallet.MortezaAccount) 
+	var babayagaAcc = database.NewAccount(wallet.BabaYagaAccount)
 
 	var node = New(
 		dataDir,
@@ -148,12 +149,12 @@ func TestNode_MiningStopsOnNewSyncedBlock(t *testing.T) {
 	)
 
 	/*
-	{"from":"morteza","to":"babayaga","value":1,"data":"","time":1794937655248871086}
+	{"from":wallet.MortezaAccount,"to":"babayaga","value":1,"data":"","time":wallet.BabaYagaAccount248871086}
 	*/ 
 
 	var tx = database.Tx{
-		From: database.NewAccount("morteza"),
-		To: database.NewAccount("babayaga"),
+		From: database.NewAccount(wallet.MortezaAccount),
+		To: database.NewAccount(wallet.BabaYagaAccount),
 		Value: 1,
 		// fixed time, so we can define a nonce, that passes mining rule
 		Time: 1794937655248871086,
@@ -162,8 +163,8 @@ func TestNode_MiningStopsOnNewSyncedBlock(t *testing.T) {
 
 	// current time
 	var tx2 = database.NewTx(
-		database.NewAccount("morteza"),
-		database.NewAccount("babayaga"),
+		database.NewAccount(wallet.MortezaAccount),
+		database.NewAccount(wallet.BabaYagaAccount),
 		2,
 		"",
 	)
