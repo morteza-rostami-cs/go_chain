@@ -3,6 +3,8 @@ package database
 import (
 	"fmt"
 	"go_chain/wallet"
+
+	// "go_chain/wallet"
 	"testing"
 )
 

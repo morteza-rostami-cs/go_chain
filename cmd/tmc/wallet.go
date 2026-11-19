@@ -59,16 +59,9 @@ func walletNewAccountCmd() *cobra.Command {
 			// store keys here
 			var dataDir = getDataDirFromCmd(cmd)
 
-			// keyphrase encryption settings
-			var ks = keystore.NewKeyStore(
-				wallet.GetKeystoreDirPath(dataDir),// store encrypted keys here
-				keystore.StandardScryptN,
-				keystore.StandardScryptP,
-			)
+			// create a privKey and return account address
+			address, err := wallet.NewKeyStoreAccount(dataDir, password)
 
-			// create an account
-			// generate private_key, derives public_key, create eth style account_address, encrypt the private_key using the password we entered, saves the encrypted account data and keys to the keystore directory
-			acc, err := ks.NewAccount(password)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
@@ -77,7 +70,7 @@ func walletNewAccountCmd() *cobra.Command {
 			// print new created account
 			// account_address => derived from => wallet public key
 			// private_key => public_key => account address
-			fmt.Printf("new account created: %s\n", acc.Address.Hex())
+			fmt.Printf("new account created: %s\n", address.Hex())
 		},
 	}
 
