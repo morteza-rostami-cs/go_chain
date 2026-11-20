@@ -186,10 +186,11 @@ func applyBlock(b Block, s *State) error {
 }
 
 // loop and apply transactions
-func applyTXs(txs []Tx, s *State) error {
+// only take SignedTx s
+func applyTXs(txs []SignedTx, s *State) error {
 
 	// copy transactions
-	sortedTXs := append([]Tx(nil), txs...)
+	sortedTXs := append([]SignedTx(nil), txs...)
 	// sort txs by time
 	// !!! this was changing the txs order => and as a result, the persisted block hash!! (so i had to copy the slice first), so we apply the sort to state, and not to block.db
 	sort.Slice(sortedTXs, func(i, j int) bool {
@@ -203,11 +204,21 @@ func applyTXs(txs []Tx, s *State) error {
 }
 
 // apply each transaction to state.Balances
-func applyTx(tx Tx, state *State) error {
+func applyTx(tx SignedTx, state *State) error {
 	// reward tx
-	if tx.IsReward() {
-		state.Balances[tx.To] += tx.Value
-		return nil
+	// if tx.IsReward() {
+	// 	state.Balances[tx.To] += tx.Value
+	// 	return nil
+	// }
+
+	// account coming from sig and publicKey => must be the same as tx.From
+	// so: for sig to give us same account as tx.From => they need to have the private_key
+	ok, err := tx.IsAuthentic()
+	if err != nil { return err }
+
+	// fake sender, or not a valid private_key sining
+	if (!ok) {
+		return fmt.Errorf("wrong Tx, sender %s is forged!", tx.From)
 	}
 
 	// check for insufficient balance
@@ -215,7 +226,7 @@ func applyTx(tx Tx, state *State) error {
 		fmt.Println("insufficient balance")
 		return fmt.Errorf(
 			"wrong TX. sender '%s' balance is %d TMC. Tx cost is %d TMC.",
-			tx.From,
+			tx.From.String(),
 			state.Balances[tx.From],
 			tx.Value,
 		)
@@ -241,7 +252,8 @@ func NewStateFromDisk(dataDir string) (*State, error) {
 
 	// create /data if does not exist
 	// create:: /data /data/genesis.json and /data/block.db
-	err := initDataDirIfNotExists(dataDir)
+	// pass the default genesisJson content here!! so, for test we can pass something else
+	err := InitDataDirIfNotExists(dataDir, []byte(genesisJson))
 	if err != nil { return nil, err }
 
 	// cwd, err := os.Getwd()// path to root dir

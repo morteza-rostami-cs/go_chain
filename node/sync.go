@@ -235,7 +235,7 @@ func (self *Node) syncBlocks(
 // sync pending txs
 func (self *Node) syncPendingTXs(
 	peer PeerNode,
-	txs []database.Tx,
+	txs []database.SignedTx,
 ) error {
 	// basically: we go over our peer txs mempool and add each to our mempool, if have not seen it before
 	for _, tx := range txs {

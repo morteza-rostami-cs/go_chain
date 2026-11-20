@@ -6,7 +6,7 @@ import (
 )
 
 // create a /data folder if it does not exists
-func initDataDirIfNotExists(dataDir string) error {
+func InitDataDirIfNotExists(dataDir string, genesis []byte) error {
 	// check if /data/genesis.json file exists or not
 	// if exists:: return nil -- do not create anything
 	//getGenesisJsonFilePath() -- get path to genesis.json file
@@ -15,13 +15,17 @@ func initDataDirIfNotExists(dataDir string) error {
 	}
 
 	// create /data directory and any missing parent folders
-	if err := os.MkdirAll(getDatabaseDirPath(dataDir), os.ModePerm); err != nil { return err }
+	if err := os.MkdirAll(getDatabaseDirPath(dataDir), os.ModePerm); err != nil { 
+		return err 
+	}
 
 	// writes data to genesis.json
-	if err := writeGenesisToDisk(getGenesisJsonFilePath(dataDir)); err != nil { return err }
+	err := writeGenesisToDisk(getGenesisJsonFilePath(dataDir), genesis)
+	if err != nil { return err }
 
 	// create an empty block.db file
-	if err := writeEmptyBlocksDbToDisk(getBlocksDbFilePath(dataDir)); err != nil { return err }
+	err = writeEmptyBlocksDbToDisk(getBlocksDbFilePath(dataDir))
+	if err != nil { return err }
 
 	return nil
 }

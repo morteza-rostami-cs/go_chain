@@ -2,12 +2,17 @@ package node
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"go_chain/config"
 	"go_chain/database"
 	"go_chain/wallet"
 	"testing"
 	"time"
+
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 func TestValidBlockHash(t *testing.T) {
@@ -45,28 +50,78 @@ func TestInvalidBlockHash(t *testing.T) {
 }
 
 // test the mining algo -- make some block, just for test
-func createRandomPendingBlock(miner database.Account) PendingBlock {
+func createRandomPendingBlock(
+	minerPrivKey *ecdsa.PrivateKey,
+	miner database.Account,
+) (PendingBlock, error) {
 
-	var mortezaAcc = database.NewAccount(wallet.MortezaAccount)
-	var babayagaAcc = database.NewAccount(wallet.BabaYagaAccount)
+	// eth accounts
+	var mortezaAcc = database.NewAccount(config.MortezaAccount)
+	var babayagaAcc = database.NewAccount(config.BabaYagaAccount)
+
+	// txs
+	var tx1 = database.NewTx(mortezaAcc, babayagaAcc, 3, "")
+	var tx2 = database.NewTx(mortezaAcc, mortezaAcc, 700, "reward")
+
+	// sign txs
+	signedTx1, err := wallet.SignTx(tx1, minerPrivKey)
+	if err != nil {
+		return PendingBlock{}, err
+	}
+
+	signedTx2, err := wallet.SignTx(tx2, minerPrivKey)
+	if err != nil {
+		return PendingBlock{}, err
+	}
 
 	// this is a genesis block
 	return NewPendingBlock(
 		database.Hash{},// zeros parent
 		0, // block number => last block chain has
 		miner,
-		[]database.Tx{
-			database.NewTx(mortezaAcc, babayagaAcc, 3, ""),
-			database.NewTx(mortezaAcc, mortezaAcc, 700, "reward"),
+		[]database.SignedTx{
+			signedTx1,
+			signedTx2,
 		},
-	)
+	), nil
+}
+
+// private_key, public_key, account_address, err
+func generateKey() (
+	*ecdsa.PrivateKey,
+	ecdsa.PublicKey,
+	database.Account,
+	error,
+) {
+	// generate a private key
+	privKey, err := ecdsa.GenerateKey(crypto.S256(), rand.Reader)
+	if err != nil {
+		return nil, ecdsa.PublicKey{}, database.Account{}, err
+	}
+
+	// get public key from private
+	pubKey := privKey.PublicKey
+	// get account
+	var account = wallet.GetAccountFromPubKey(pubKey)
+
+	//  					         miner
+	return privKey, pubKey, account, nil
 }
 
 // test the mining algo
 func TestMine(t *testing.T) {
 	// get a pending block
-	var miner = database.NewAccount(DefaultMiner)
-	var pendingBlock = createRandomPendingBlock(miner) 
+	// var miner = database.NewAccount(DefaultMiner)
+	minerPrivKey,_, miner, err := generateKey()
+	if err != nil {
+		t.Fatal(err)
+	}  
+
+	// sign txs and make a pending block
+	pendingBlock, err := createRandomPendingBlock(minerPrivKey, miner)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// get a context for stopping the goroutine
 	var ctx = context.Background() 
@@ -95,14 +150,22 @@ func TestMine(t *testing.T) {
 
 // test: with passing a context cancellation timeout, into our goroutine
 func TestMineWithTimeout(t *testing.T) {
-	var miner = database.NewAccount(DefaultMiner)
-	pendingBlock := createRandomPendingBlock(miner)
+	minerPrivKey,_, miner, err := generateKey()
+	if err != nil {
+		t.Fatal(err)
+	}  
+
+	// sign txs and make a pending block
+	pendingBlock, err := createRandomPendingBlock(minerPrivKey, miner)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// our goroutine times out after a certain time
 	// we are discarding the cancel function.
 	ctx, _ := context.WithTimeout(context.Background(), time.Microsecond * 100)
 
-	_, err := Mine(ctx, pendingBlock)
+	_, err = Mine(ctx, pendingBlock)
 	if err != nil { t.Fatal(err) }
 }
 

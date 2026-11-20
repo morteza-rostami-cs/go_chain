@@ -16,14 +16,14 @@ type PendingBlock struct{
 	time	uint64
 	// so:each pendingBlock, take its miner into mining process.
 	miner	database.Account
-	txs	[]database.Tx
+	txs	[]database.SignedTx
 }
 
 func NewPendingBlock(
 	parent database.Hash,
 	number uint64,
 	miner	database.Account,
-	txs []database.Tx,
+	txs []database.SignedTx,
 ) PendingBlock {
 	return PendingBlock{
 		parent,

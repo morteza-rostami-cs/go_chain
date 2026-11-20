@@ -107,8 +107,8 @@ type Block struct{
 	// block header
 	// json tags are defining the name of our fields, inside json file
 	Header BlockHeader `json:"header"`
-	// batch of transactions in a block
-	TXs []Tx	`json:"payload"`
+	// batch of signed transactions in a block
+	TXs []SignedTx	`json:"payload"`
 }
 // constructor
 func NewBlock(
@@ -117,7 +117,7 @@ func NewBlock(
 	nonce uint32,
 	time uint64, 
 	miner	Account,
-	txs []Tx,
+	txs []SignedTx,
 ) Block {
 	return Block{
 		BlockHeader{parent, number, nonce, time, miner},

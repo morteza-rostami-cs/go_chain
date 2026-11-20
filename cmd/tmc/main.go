@@ -44,7 +44,7 @@ func main() {
 	tmcCmd.AddCommand(balancesCmd()) // tmc balances
 	// tmcCmd.AddCommand(txCmd())// tmc tx
 	tmcCmd.AddCommand(runCmd())// start node command
-	tmcCmd.AddCommand(migrateCmd)
+	// tmcCmd.AddCommand(migrateCmd)
 
 	// new account creation
 	tmcCmd.AddCommand(walletCmd())

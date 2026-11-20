@@ -2,13 +2,11 @@ package wallet
 
 import (
 	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/rand"
 	"math/big"
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -52,7 +50,7 @@ func TestSign(t *testing.T) {
 	// get public key and account from privKey
 	var pubKey = privKey.PublicKey
 
-	var account = getAccountFromPubKey(pubKey)
+	var account = GetAccountFromPubKey(pubKey)
 
 	// message to sign
 	var msg = []byte("the Web3Coach students are awesome")
@@ -66,7 +64,7 @@ func TestSign(t *testing.T) {
 	recoveredPubKey, err := Verify(msg, sig)
 	if err != nil { t.Fatal(err) }
 
-	var recoveredAcc = getAccountFromPubKey(*recoveredPubKey)
+	var recoveredAcc = GetAccountFromPubKey(*recoveredPubKey)
 
 	// check if the account address recovered by Verify() is the same as original
 	if account.Hex() != recoveredAcc.Hex() {
@@ -80,14 +78,3 @@ func TestSign(t *testing.T) {
 	t.Log(account.Hex())
 }
 
-// pass public key and get => eth account address
-func getAccountFromPubKey(pubKey ecdsa.PublicKey) common.Address {
-	// convert to [65]byte
-	var pubKeyBytes = elliptic.Marshal(crypto.S256(), pubKey.X, pubKey.Y)
-	// skip the prefix 0x04 
-	var pubKeyBytesHash = crypto.Keccak256(pubKeyBytes[1:])
-	// account address => is the last 20 bytes -- take bytes 12..32 (the last 20)
-	var account = common.BytesToAddress(pubKeyBytesHash[:12])
-
-	return account
-}

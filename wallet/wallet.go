@@ -2,11 +2,16 @@ package wallet
 
 import (
 	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/sha256"
 	"fmt"
+	"go_chain/database"
+	"os"
 
 	// "go_chain/database"
 	"path/filepath"
 
+	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -14,11 +19,6 @@ import (
 
 // sub dir name, for storing encrypted keys
 const keystoreDirName = "keystore"
-
-// some default wallet addresses (for testing and so on)
-const MortezaAccount = "0x22ba1F80452E6220c7cc6ea2D1e3EEDDaC5F694A"
-const BabaYagaAccount = "0x21973d33e048f5ce006fd7b41f51725c30e4b76b"
-const CaesarAccount = "0x84470a31D271ea400f34e7A697F36bE0e866a716"
 
 // keys storage path
 func GetKeystoreDirPath(dataDir string) string {
@@ -43,6 +43,71 @@ func NewKeyStoreAccount(dataDir string, password string) (common.Address, error)
 	return acc.Address, nil
 }
 
+// load privKey from file, and sign tx with it
+func SignTxWithKeystoreAccount(
+	tx database.Tx, // tx to sign
+	acc	database.Account, // eth address of the account that should sign it
+	pwd	string, // passphrase, to unlock the keystore
+	keystoreDir	string,// key dir path to keystore
+) (database.SignedTx, error) {
+
+	// load and config
+	ksManager := keystore.NewKeyStore(keystoreDir, keystore.StandardScryptN, keystore.StandardScryptP)
+
+	// keystore can hold multiple accounts => find the one we want to sign with
+	ksAccount, err := ksManager.Find(accounts.Account{Address: acc})
+	if err != nil {
+		return database.SignedTx{}, err
+	}
+
+	/*
+	keystore/
+    UTC--...--account1
+    UTC--...--account2
+	*/
+
+	// read the file into json
+	ksAccountJson, err := os.ReadFile(ksAccount.URL.Path)
+	if err != nil {
+		return database.SignedTx{}, err
+	}
+
+	// use password to decrypt the privKey, for signing
+	key, err := keystore.DecryptKey(ksAccountJson, pwd)
+	if err != nil {
+		return database.SignedTx{}, err
+	}
+
+	// sign the tx
+	signedTx, err := SignTx(tx, key.PrivateKey)
+	if err != nil {
+		return database.SignedTx{}, err
+	}
+
+	return signedTx, nil
+}
+
+// sign and return SignedTx
+func SignTx(
+	tx database.Tx,
+	privKey *ecdsa.PrivateKey,	
+) (database.SignedTx, error) {
+	// get tx raw json bytes
+	rawTx, err := tx.Encode() 
+	if err != nil {
+		return database.SignedTx{}, err
+	}
+
+	// sign tx
+	sig, err := Sign(rawTx, privKey)
+	if err != nil {
+		return database.SignedTx{}, err
+	}
+
+	// return a SignedTx
+	return database.NewSignedTx(tx, sig), nil
+}
+
 // take: a message []byte, and, private key
 // return a [65]byte signature
 func Sign(
@@ -52,10 +117,13 @@ func Sign(
 
 	// hash the message or tx or whatever bytes, we need the hash for signing
 	// returns: [32]byte keccak-256 hash
-	msgHash := crypto.Keccak256(msg)
+	// msgHash := crypto.Keccak256(msg)
+	
+	// use the same hashing as tx.Hash()
+	var msgHash = sha256.Sum256(msg)
 
 	// sign the message hash
-	sig, err := crypto.Sign(msgHash, privKey)
+	sig, err := crypto.Sign(msgHash[:], privKey)
 	if err != nil { return nil, err }
 
 	// check sig length
@@ -82,10 +150,13 @@ publicKey = Verify(message, signature)
 
 func Verify(msg, sig []byte) (*ecdsa.PublicKey, error) {
 	// hash the message
-	var msgHash = crypto.Keccak256(msg)
+	// var msgHash = crypto.Keccak256(msg)
 
+	// use sha256 => to match the IsAuthentic()
+	var msgHash = sha256.Sum256(msg)
+	
 	// verify private_key signing, msg + sig = public_key
-	publicKey, err := crypto.SigToPub(msgHash, sig)
+	publicKey, err := crypto.SigToPub(msgHash[:], sig)
 
 	// if: msg + sig = invalid! => we get error, (no public_key)
 	if err != nil {
@@ -110,3 +181,14 @@ Ethereum Address
 */
 // public_key => account_address
 
+// pass public key and get => eth account address
+func GetAccountFromPubKey(pubKey ecdsa.PublicKey) common.Address {
+	// convert to [65]byte
+	var pubKeyBytes = elliptic.Marshal(crypto.S256(), pubKey.X, pubKey.Y)
+	// skip the prefix 0x04 
+	var pubKeyBytesHash = crypto.Keccak256(pubKeyBytes[1:])
+	// account address => is the last 20 bytes -- take bytes 12..32 (the last 20)
+	var account = common.BytesToAddress(pubKeyBytesHash[:12])
+
+	return account
+}

@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"go_chain/config"
 	database "go_chain/database"
-	"go_chain/wallet"
 	"net/http"
 	"time"
 )
@@ -16,9 +16,9 @@ const miningIntervalSeconds = 10
 // default bootstrap node info
 const DefaultBootstrapIp = "127.0.0.1"
 const DefaultBootstrapPort = 8081
-const DefaultBootstrapAcc = wallet.MortezaAccount
+const DefaultBootstrapAcc = config.MortezaAccount
 
-const DefaultMiner = wallet.MortezaAccount
+const DefaultMiner = config.MortezaAccount
 
 // http port
 const DefaultIP = "127.0.0.1"
@@ -83,8 +83,8 @@ type Node struct{
 
 	// archived/mined transactions
 	// tx_hash:Tx => key:value
-	pendingTXs	map[string]database.Tx // mempool
-	archivedTXs	map[string]database.Tx
+	pendingTXs	map[string]database.SignedTx // mempool
+	archivedTXs	map[string]database.SignedTx
 
 	// signals coming form network
 
@@ -92,7 +92,7 @@ type Node struct{
 	// we use channel, cause: miner is inside a goroutine.
 	newSyncedBlocks	chan	database.Block
 	// channel:: receive pendingTxs, that other nodes are registering and broadcasting
-	newPendingTXs	chan	database.Tx
+	newPendingTXs	chan	database.SignedTx
 
 	// is node mining or not? => whether the node mining loop is running ?
 	isMining	bool
@@ -119,12 +119,12 @@ func New(
 		knownPeers: peers,
 
 		// these states, only need to be init with empty values
-		pendingTXs: make(map[string]database.Tx),
-		archivedTXs: make(map[string]database.Tx),
+		pendingTXs: make(map[string]database.SignedTx),
+		archivedTXs: make(map[string]database.SignedTx),
 		newSyncedBlocks: make(chan database.Block),
 
 		// this is buffered channel for 10000 txs
-		newPendingTXs: make(chan database.Tx, 10_000),
+		newPendingTXs: make(chan database.SignedTx, 10_000),
 		isMining: false,
 	}
 }
@@ -161,7 +161,7 @@ func (self *Node) IsKnownPeer(peer PeerNode) bool {
 
 // decide if to add tx to mempool or not? and maybe do add
 func (self *Node) AddPendingTX(
-	tx database.Tx,
+	tx database.SignedTx,
 	fromPeer PeerNode,// use this only for printing name
 ) error {
 	// hash the tx
@@ -195,8 +195,8 @@ func (self *Node) AddPendingTX(
 
 // memPool transactions map => return as an slice
 // for sending over http, we want transactions in a slice
-func (self *Node) getPendingTXsAsArray() []database.Tx {
-	var txs = make([]database.Tx, len(self.pendingTXs))// empty slice
+func (self *Node) getPendingTXsAsArray() []database.SignedTx {
+	var txs = make([]database.SignedTx, len(self.pendingTXs))// empty slice
 	// loop over the map, skip the key/hash
 	var i = 0
 	for _, tx := range self.pendingTXs {

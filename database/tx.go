@@ -3,10 +3,25 @@ package database
 import (
 	"crypto/sha256"
 	"encoding/json"
+	"go_chain/config"
+
+	// "go_chain/wallet"
+
+	// "go_chain/wallet"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 )
+
+/*
+Tx.Hash() / SignedTx.Hash(): SHA-256, used for identity (map keys, block contents).
+
+wallet.Sign / wallet.Verify: the signing hash
+
+when it comes to hashing tx for private key signing also => book eventually uses sha-256 hashing!!
+
+*/
 
 // account is just a string now
 // type Account string
@@ -25,6 +40,49 @@ type Account = common.Address // alias
 func NewAccount(value string) Account {
 	// turn a hex string to 20byte address
 	return common.HexToAddress(value)
+}
+
+// signed tx, tx after signing
+// by embedding Tx => we can pass SignedTx , where Tx expected.
+type SignedTx struct{
+	Tx// embedding, compose Tx methods
+	// 65 byte slice
+	Sig	[]byte	`json:"signature"`
+}
+// methods
+func (self SignedTx) Hash() (Hash, error) {
+	// SignedTx, has Tx.Encode() method, (composition), it returns json for the underlying Tx, => SignedTx.Hash() == SignedTx.Tx.Hash() -- we don't want the sig, in this hash, just Tx!!
+	txJson, err := self.Encode()
+	if err != nil {
+		return Hash{}, err
+	}
+	return sha256.Sum256(txJson), nil
+}
+
+// tx + tx.sig = public key
+// public key to account
+// check: account == tx.From
+// so: sig gives the same account and tx.From => and if we change anything about the tx, sig is not valid.
+func (self SignedTx) IsAuthentic() (bool, error) {
+	// txHash, err := self.Hash()
+	txHash, err := self.Tx.Hash()
+	if err != nil { return false, err }
+
+	// tx + tx.sig = public key
+	// txHash[:] => array to slice
+	recoveredBubKey, err := crypto.SigToPub(txHash[:], self.Sig)
+	if err != nil { return false, err }
+
+	//get account from public key 
+	var acc = config.GetAccountFromPubKey(*recoveredBubKey)
+
+	// check: publicKey.account == tx.From
+	// basically: is the sender also owner of private_key
+	return acc.Hex() == self.From.Hex(), nil
+}
+
+func NewSignedTx(tx Tx, sig []byte) SignedTx {
+	return SignedTx{tx, sig}
 }
 
 // Transaction
@@ -47,10 +105,15 @@ func (self Tx) IsReward() bool {
 	return self.Data == "reward"
 } 
 
+// so: struct to json bytes => so some other hashing function can hash the same bytes => as inside Hash()
+func (self Tx) Encode() ([]byte, error) {
+	return json.Marshal(self)
+}
+
 // hash transaction
 // tx hash will be used as the key => in pendingTxs map
 func (self Tx) Hash() (Hash, error) {
-	txJson, err := json.Marshal(self)
+	txJson, err := self.Encode()
 	if err != nil { return Hash{}, err }
 
 	// hash json bytes of our tx

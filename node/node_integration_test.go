@@ -2,15 +2,29 @@ package node
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"go_chain/config"
 	"go_chain/database"
 	"go_chain/fs"
 	"go_chain/wallet"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 )
+
+// basically: we want to have control over the eth_addresses stored inside keystore files
+// fixed account_address => that we store in test keystore file
+const testKsMortezaAccount = "0x3eb92807f1f91a8d4d85bc908c7f86dcddb1df57"
+const testKsBabaYagaAccount = "0x6fdc0d8d15ae6b4ebf45c52fd2aafbcbb19a65c8"
+
+// each eth_address => get a keystore file => with the following files
+const testKsMortezaFile = "test_morteza--3eb92807f1f91a8d4d85bc908c7f86dcddb1df57"
+const testKsBabaYagaFile = "test_babayaga--6fdc0d8d15ae6b4ebf45c52fd2aafbcbb19a65c8"
+// test keystore password
+const testKsAccountsPwd = "security123"
 
 // test node running and shutdown
 func TestNode_Run(t *testing.T) {
@@ -21,7 +35,13 @@ func TestNode_Run(t *testing.T) {
 	if err != nil { t.Fatal(err) }
 
 	// run a Node
-	var node = New(dataDir, DefaultIP, DefaultHttpPort, database.NewAccount(DefaultMiner), PeerNode{})
+	var node = New(
+		dataDir, 
+		DefaultIP, 
+		DefaultHttpPort, 
+		database.NewAccount(DefaultMiner), 
+		PeerNode{},
+	)
 
 	// a time out context, after 5 sec ctx.Done() channel closes
 	ctx, _ := context.WithTimeout(context.Background(), time.Second*5)
@@ -35,16 +55,52 @@ func TestNode_Run(t *testing.T) {
 
 // test node mining feature
 func TestNode_Mining(t *testing.T) {
-	var dataDir = getTestDataDirPath() 
-	err := fs.RemoveDir(dataDir)
+	// test accounts addresses
+	var morAcc = database.NewAccount(testKsMortezaAccount)
+	var babaAcc = database.NewAccount(testKsBabaYagaAccount)
+
+	//set our genesis.json content for test
+	var genesisBalances = make(map[database.Account]uint) 
+	genesisBalances[morAcc] = 1000_000
+	// genesis.json content
+	var genesis = database.Genesis{Balances: genesisBalances}
+
+	// struct to json
+	genesisJson, err := json.Marshal(genesis)
 	if err != nil { t.Fatal(err) }
+	
+	// test /data folder
+	var dataDir = getTestDataDirPath() 
+	// err = fs.RemoveDir(dataDir)
+	if err != nil { t.Fatal(err) }
+
+	// initialize data folders and write genesis.json and so on
+	err = database.InitDataDirIfNotExists(dataDir, genesisJson)
+	if err != nil { t.Fatal(err) }
+
+	// remove test /data folder at the end
+	defer fs.RemoveDir(dataDir)
+
+	// copy test json files into /data/keystore
+	err = copyKeystoreFilesIntoTestDataDirPath(dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var info = NewPeerNode(
+		DefaultIP,
+		DefaultHttpPort,
+		true,
+		database.NewAccount(""),
+		false,
+	)
 
 	var node = New(
 		dataDir, 
 		DefaultIP, 
 		DefaultHttpPort, 
 		database.NewAccount(DefaultMiner), 
-		PeerNode{},
+		info,
 	)
 
 	// a 15 minutes timeout for our node, enough for some mining!
@@ -57,42 +113,52 @@ func TestNode_Mining(t *testing.T) {
 		time.Sleep(time.Second * 1)
 
 		var tx = database.NewTx(
-			database.NewAccount(wallet.MortezaAccount),
-			database.NewAccount(wallet.BabaYagaAccount),
+			morAcc,
+			babaAcc,
 			1,
 			"",
 		)
 
-		// same 8081 node, adds a tx to it's mempool
-		// so node 8082 => add a transaction to its mempool
-		var fromPeer = NewPeerNode(
-			DefaultIP, 
-			DefaultHttpPort, 
-			false, 
-			database.NewAccount(DefaultMiner), 
-			true,
+		// sign tx
+		signedTx, err := wallet.SignTxWithKeystoreAccount(
+			tx, 
+			morAcc,// account to sign with 
+			testKsAccountsPwd, // password
+			wallet.GetKeystoreDirPath(dataDir),
 		)
-		_ = node.AddPendingTX(tx, fromPeer)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		_ = node.AddPendingTX(signedTx, info)
 	}()
 
 	// create the second transaction
 	go func() {
 		// wait 30 sec
-		time.Sleep(time.Second * 30)
+		time.Sleep(time.Second * 20)
+
 		var tx = database.NewTx(
-			database.NewAccount(wallet.MortezaAccount),
-			database.NewAccount(wallet.BabaYagaAccount),
+			database.NewAccount(config.MortezaAccount),
+			database.NewAccount(config.BabaYagaAccount),
 			2,
 			"",
 		)		
-		var fromPeer = NewPeerNode(
-			DefaultIP, 
-			DefaultHttpPort, 
-			false, 
-			database.NewAccount(DefaultMiner), 
-			true,
+
+		// sign tx
+		signedTx, err := wallet.SignTxWithKeystoreAccount(
+			tx, 
+			morAcc,// account to sign with 
+			testKsAccountsPwd, // password
+			wallet.GetKeystoreDirPath(dataDir),
 		)
-		_ = node.AddPendingTX(tx, fromPeer)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		_ = node.AddPendingTX(signedTx, info)
 	}()
 
 	// each 10 sec wait for node.state latest blockNumber, if 2 !! means that we successfully mined 2 blocks => close node_server
@@ -121,8 +187,34 @@ func TestNode_Mining(t *testing.T) {
 
 // test if miner stops, on other peer's success
 func TestNode_MiningStopsOnNewSyncedBlock(t *testing.T) {
+
+	//accounts
+	var morAcc = database.NewAccount(testKsMortezaAccount)
+	var babaAcc = database.NewAccount(testKsBabaYagaAccount)
+
 	var dataDir = getTestDataDirPath()
-	err := fs.RemoveDir(dataDir)
+	// err := fs.RemoveDir(dataDir)
+	// if err != nil { t.Fatal(err) }
+
+	
+	// genesis data
+	var balances = make(map[database.Account]uint)
+	balances[morAcc] = 1000_000
+	var genesis = database.Genesis{Balances: balances}
+
+	genesisJson, err := json.Marshal(genesis)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = database.InitDataDirIfNotExists(dataDir, genesisJson)
+	defer fs.RemoveDir(dataDir)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = copyKeystoreFilesIntoTestDataDirPath(dataDir)
 	if err != nil { t.Fatal(err) }
 
 	// channel for errors coming from goroutines
@@ -130,15 +222,21 @@ func TestNode_MiningStopsOnNewSyncedBlock(t *testing.T) {
 	// wait for balance check
 	var balanceDone = make(chan struct{})
 
-	// two accounts, one for each node.miner
-	var mortezaAcc = database.NewAccount(wallet.MortezaAccount) 
-	var babayagaAcc = database.NewAccount(wallet.BabaYagaAccount)
+	// peer node => the node that mines block sooner
+	var info = NewPeerNode(
+		DefaultIP,
+		DefaultHttpPort,
+		false,
+		database.NewAccount(""),// zero account
+		true,
+	)
 
 	var node = New(
 		dataDir,
 		DefaultIP, 
 		8082, 
-		babayagaAcc,
+		babaAcc,
+		// we do not send mined block over http
 		PeerNode{},// empty bootstrap
 	)
 
@@ -152,57 +250,73 @@ func TestNode_MiningStopsOnNewSyncedBlock(t *testing.T) {
 	{"from":wallet.MortezaAccount,"to":"babayaga","value":1,"data":"","time":wallet.BabaYagaAccount248871086}
 	*/ 
 
-	var tx = database.Tx{
-		From: database.NewAccount(wallet.MortezaAccount),
-		To: database.NewAccount(wallet.BabaYagaAccount),
-		Value: 1,
-		// fixed time, so we can define a nonce, that passes mining rule
-		Time: 1794937655248871086,
-		Data: "",
-	}
-
+	var tx1 = database.NewTx(
+		morAcc,
+		babaAcc,
+		1,
+		"",
+	)
 	// current time
 	var tx2 = database.NewTx(
-		database.NewAccount(wallet.MortezaAccount),
-		database.NewAccount(wallet.BabaYagaAccount),
+		morAcc,
+		babaAcc,
 		2,
 		"",
 	)
-	// hash second tx2
-	tx2Hash, _ := tx2.Hash()
 
-	// an already mined block, we assume morteza mined this!
-	var validSyncedBlock = database.NewBlock(
-		database.Hash{},
-		1,
-		3197136926,// nonce
-		1794937664,// time
-		mortezaAcc,// miner
-		[]database.Tx{tx},
+	// sign txs
+	signedTx1, err := wallet.SignTxWithKeystoreAccount(
+		tx1, 
+		morAcc, 
+		testKsAccountsPwd, 
+		wallet.GetKeystoreDirPath(dataDir),
 	)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	signedTx2, err := wallet.SignTxWithKeystoreAccount(
+		tx2, 
+		morAcc, 
+		testKsAccountsPwd, 
+		wallet.GetKeystoreDirPath(dataDir),
+	)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	// hash second tx2
+	tx2Hash, _ := signedTx2.Hash()
+
+	var pBlock = NewPendingBlock(
+		database.Hash{},
+		0,// block_number
+		morAcc, // miner
+		[]database.SignedTx{signedTx1},
+	)
+
+	// morAcc mines a block
+	validSyncedBlock, err := Mine(ctx, pBlock)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// morteza:: adds two txs to the mempool
 	go func() {
 		// sleep 8 sec
 		time.Sleep(time.Second * (miningIntervalSeconds - 2))
 
-		var fromPeer = NewPeerNode(
-			DefaultIP, 
-			DefaultHttpPort, 
-			false, 
-			mortezaAcc, 
-			true,
-		) 
-
 		// this one, our node start mining, but then we signal => it is already mined, so, stop!
-		err := node.AddPendingTX(tx, fromPeer)
+		err := node.AddPendingTX(signedTx1, info)
 		if err != nil { 
 			errCh <-err
 			return	
 		}
 
 		// this one it mines itself
-		err = node.AddPendingTX(tx2, fromPeer)
+		err = node.AddPendingTX(signedTx2, info)
 		if err != nil { 
 			errCh <-err
 			return
@@ -227,10 +341,12 @@ func TestNode_MiningStopsOnNewSyncedBlock(t *testing.T) {
 			errCh <- fmt.Errorf("%w", err)
 			return
 		}
+
 		fmt.Println("mined block was added, by other peer.")
 
 		// send mined node through channel, to stop the other miner
 		node.newSyncedBlocks <-validSyncedBlock
+
 		time.Sleep(time.Second * 2) // wait 2 sec for cancellation
 
 		// check: miner should have shutdown now
@@ -284,19 +400,19 @@ func TestNode_MiningStopsOnNewSyncedBlock(t *testing.T) {
 
 		// get the starting balances
 		// currentNode is babayaga, and morteza mines the block
-		var startMortezaBalance = node.state.Balances[mortezaAcc] 
-		var startBabayagaBalance = node.state.Balances[babayagaAcc]
+		var startMortezaBalance = node.state.Balances[morAcc] 
+		var startBabayagaBalance = node.state.Balances[babaAcc]
 
 		// wait for the timeout signal (after mining)
 		<-ctx.Done()
 
 		// get the balances after mining
-		var endMortezaBalance = node.state.Balances[mortezaAcc]
-		var endBabayagaBalance = node.state.Balances[babayagaAcc]
+		var endMortezaBalance = node.state.Balances[morAcc]
+		var endBabayagaBalance = node.state.Balances[babaAcc]
 
 		// expected balances => each have mined one block
-		var expectedMortezaBalance = startMortezaBalance - tx.Value - tx2.Value + database.BlockReward
-		var expectedBabayagaBalance = startBabayagaBalance + tx.Value + tx2.Value + database.BlockReward
+		var expectedMortezaBalance = startMortezaBalance - tx1.Value - tx2.Value + database.BlockReward
+		var expectedBabayagaBalance = startBabayagaBalance + tx1.Value + tx2.Value + database.BlockReward
 
 		if endMortezaBalance != expectedMortezaBalance {
 			errCh <-fmt.Errorf("morteza expected end balance is %d not %d", expectedMortezaBalance, endMortezaBalance)
@@ -336,7 +452,54 @@ func TestNode_MiningStopsOnNewSyncedBlock(t *testing.T) {
 	}
 }
 
-func getTestDataDirPath() string {
+func getTestDataDirPath() (string) {
 	// just put data in some temp folder 
-	return filepath.Join(os.TempDir(), ".tmc_test")
+	return filepath.Join(os.TempDir(), "tmc_test")
+}
+
+// for test, we have are keystore files hard coded!! because we want fixed account_addresses, not just some random keys each time!
+// so, we load our own files => into /data dir, for keystore files!
+func copyKeystoreFilesIntoTestDataDirPath(dataDir string) error {
+	// open morteza keystore file
+	mortezaSrcKs, err := os.Open(testKsMortezaFile) 
+	if err != nil { return err }
+
+	defer mortezaSrcKs.Close()
+
+	// set the dir for keystore
+	// /test/keystore/sdfsd_sddssd
+	var ksDir = filepath.Join(wallet.GetKeystoreDirPath(dataDir))
+
+	// create path and set folder permission
+	err = os.Mkdir(ksDir, 0777)
+	if err != nil { return err } 
+
+	// create morteza keystore file
+	mortezaDstKs, err := os.Create(filepath.Join(ksDir, testKsMortezaFile)) 
+	if err != nil {
+		return err
+	}
+
+	defer mortezaDstKs.Close()
+
+	// copy json content into the file
+	_, err = io.Copy(mortezaDstKs, mortezaSrcKs)
+	if err != nil { return err }
+
+	// repeat the same thing for babayaga file
+
+	babayagaSrcKs, err := os.Open(testKsBabaYagaFile) 
+	if err != nil { return err }
+
+	defer babayagaSrcKs.Close()
+
+	babayagaDstKs, err := os.Create(filepath.Join(ksDir, testKsBabaYagaFile))
+	if err != nil { return err }
+
+	defer babayagaDstKs.Close()
+
+	_, err = io.Copy(babayagaDstKs, babayagaSrcKs)
+	if err != nil { return err }
+
+	return nil
 }

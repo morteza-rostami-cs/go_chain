@@ -4,8 +4,11 @@ import (
 	// "encoding/json"
 	"fmt"
 	"go_chain/database"
+	"go_chain/wallet"
 	"net/http"
 	"strconv"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // http error response
@@ -24,6 +27,7 @@ type BalancesRes struct{
 // POST /create/tx request
 type TxAddReq struct{
 	From string `json:"from"`
+	FromPwd	string `json:"from_pwd"`// passphrase
 	To string `json:"to"`
 	Value uint `json:"value"`
 	Data string `json:"data"`
@@ -54,7 +58,7 @@ type StatusRes struct{
 	KnownPeers map[string]PeerNode `json:"peers_known"`
 
 	// waiting mempool
-	PendingTXs	[]database.Tx	`json:"pending_txs"`
+	PendingTXs	[]database.SignedTx	`json:"pending_txs"`
 }
 
 type  RegisterPeerRes struct{
@@ -100,16 +104,49 @@ func txAddHandler(
 		return
 	}
 
+	// convert string From into Account
+	var from = database.NewAccount(request.From)
+
+	// check for empty eth address (zero)
+	if from.String() == common.HexToAddress("").String() {
+		writeErrRes(res, fmt.Errorf("%s is an invalid from sender", from.String()))
+		return
+	}
+
+	// check for password
+	if request.FromPwd == "" {
+		writeErrRes(
+			res,
+			fmt.Errorf(
+				"password is required! to decrypt account %s",
+				from.String(),
+			),
+		)
+		return
+	}
+
 	// create tx
 	tx := database.NewTx(
-		database.NewAccount(request.From),
+		from,
 		database.NewAccount(request.To),
 		request.Value,
 		request.Data,
 	)
 
+	// signed the tx, with their key store, from and password is what we need to get the private_key
+	signedTx, err := wallet.SignTxWithKeystoreAccount(
+		tx,
+		from, // eth account to sign with
+		request.FromPwd,
+		wallet.GetKeystoreDirPath(node.dataDir),
+	)
+	if err != nil {
+		writeErrRes(res, err)
+		return
+	}
+
 	// add ts to mempool
-	if err := node.AddPendingTX(tx, node.info); err != nil {
+	if err := node.AddPendingTX(signedTx, node.info); err != nil {
 		writeErrRes(res, err)
 		return
 	}
