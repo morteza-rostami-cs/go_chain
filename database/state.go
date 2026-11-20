@@ -178,6 +178,7 @@ func applyBlock(b Block, s *State) error {
 
 	// if all validation passed => apply transactions to state now.
 	err = applyTXs(b.TXs, s)
+	if err != nil { return err }
 
 	// after block is mined and applied
 	// give reward to the miner
@@ -215,7 +216,7 @@ func applyTx(tx SignedTx, state *State) error {
 	// so: for sig to give us same account as tx.From => they need to have the private_key
 	ok, err := tx.IsAuthentic()
 	if err != nil { return err }
-
+	
 	// fake sender, or not a valid private_key sining
 	if (!ok) {
 		return fmt.Errorf("wrong Tx, sender %s is forged!", tx.From)

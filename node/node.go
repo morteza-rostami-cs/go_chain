@@ -188,6 +188,10 @@ func (self *Node) AddPendingTX(
 		self.pendingTXs[txHash.Hex()] = tx
 		// send tx through the channel => so other nodes also can add the tx to their mempool
 		self.newPendingTXs <- tx
+	} else {
+		fmt.Println("\n== we have seen this tx before!! ==")
+		txJson, _ = tx.Encode()
+		fmt.Printf("%s", txJson)
 	}
 
 	return nil

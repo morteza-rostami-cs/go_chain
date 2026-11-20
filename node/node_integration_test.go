@@ -57,7 +57,7 @@ func TestNode_Mining(t *testing.T) {
 	// struct to json
 	genesisJson, err := json.Marshal(genesis)
 	if err != nil { t.Fatal(err) }
-	
+
 	// test /data folder
 	var dataDir = getTestDataDirPath() 
 	// err = fs.RemoveDir(dataDir)
@@ -93,7 +93,7 @@ func TestNode_Mining(t *testing.T) {
 	)
 
 	// a 15 minutes timeout for our node, enough for some mining!
-	// 		function to shutdown node.Run()
+	// function to shutdown node.Run()
 	ctx, closeNodeFunc := context.WithTimeout(context.Background(), time.Minute*15)
 
 	// a go that creates a transaction
@@ -133,7 +133,7 @@ func TestNode_Mining(t *testing.T) {
 			database.NewAccount(config.BabaYagaAccount),
 			2,
 			"",
-		)		
+		) 
 
 		// sign tx
 		signedTx, err := wallet.SignTxWithKeystoreAccount(
@@ -160,7 +160,7 @@ func TestNode_Mining(t *testing.T) {
 				closeNodeFunc()// close node server
 				return
 			} else {
-				fmt.Println("still mining", node.state.GetChainLen())	
+				fmt.Println("still mining", node.state.GetChainLen()) 
 			}
 		}
 	}()
@@ -441,6 +441,206 @@ func TestNode_MiningStopsOnNewSyncedBlock(t *testing.T) {
 	}
 }
 
+// attack:: hacker sends a valid sig + different tx
+func TestNode_ForgedTx(t *testing.T) {
+	// setup test env
+	dataDir, morAcc, babaAcc, err := setupTestNodeDir()
+	if err != nil { t.Error(err) }
+
+	defer fs.RemoveDir(dataDir)// remove the test data dir at the end
+
+	var node = New(
+		dataDir, 
+		DefaultIP, 
+		DefaultHttpPort, 
+		morAcc, 
+		PeerNode{},
+	)
+
+	// 15 min timeout for node
+	ctx, closeNode := context.WithTimeout(context.Background(), time.Minute * 15)
+
+	// peer node who signed tx
+	morPeerNode := NewPeerNode(
+		DefaultIP, 
+		DefaultHttpPort, 
+		false,// not bootstrap 
+		morAcc, // miner account
+		true,// connected to our current node
+	)
+
+	// tx
+	var txValue uint = 5
+
+	var tx = database.NewTx(morAcc, babaAcc, txValue, "")
+
+	// sign tx
+	validSignedTx, err := wallet.SignTxWithKeystoreAccount(
+		tx,
+		morAcc, // signer
+		config.TestKsAccountsPwd,
+		wallet.GetKeystoreDirPath(dataDir),
+	)
+
+	if err != nil {
+		t.Error(err)
+		// return
+	}
+
+	// push to mempool and trigger mining
+	_ = node.AddPendingTX(validSignedTx, morPeerNode)
+
+	go func() {
+		ticker := time.NewTicker(time.Second * miningIntervalSeconds - 3)
+
+		var wasForgedTxAdded = false
+
+		for range ticker.C {
+			// check if chain is not empty
+			// meaning the previous tx was mined!!
+			if !node.state.LatestBlockHash().IsEmpty() {
+
+				// check: we already added the same tx twice into our mempool and the mining is over
+				if wasForgedTxAdded && !node.isMining {
+					closeNode()
+					return
+				}
+
+				// if we have not added the same tx , a second time
+				if !wasForgedTxAdded {
+
+					// create forged => different Time
+					var forgedTx = database.NewTx(
+						morAcc,
+						babaAcc,
+						txValue,
+						"",
+					)
+
+					var forgedSignedTx = database.NewSignedTx(
+						forgedTx,
+						// steal the sig of previous tx
+						validSignedTx.Sig,
+					)
+
+					// submit the same tx again
+					_ = node.AddPendingTX(
+						forgedSignedTx,
+						morPeerNode,
+					)
+					wasForgedTxAdded = true
+
+					// wait for replay
+					time.Sleep(time.Second * (miningIntervalSeconds + 3))
+				}
+			}
+		}
+	}()
+
+	_ = node.Run(ctx)
+
+	if node.state.CurrentBlockNumber() != 1 {
+		t.Fatal("mined two blocks! second tx is forged.")
+	}
+
+	if node.state.Balances[babaAcc] != txValue {
+		t.Fatal("forged tx succeeded.")
+	}
+}
+
+// attack:: hacker re-submit the same tx twice
+func TestNode_ReplayedTx(t *testing.T) {
+	// setup test env
+	dataDir, morAcc, babaAcc, err := setupTestNodeDir()
+	if err != nil { t.Error(err) }
+
+	defer fs.RemoveDir(dataDir)// remove the test data dir at the end
+
+	var node = New(
+		dataDir, 
+		DefaultIP, 
+		DefaultHttpPort, 
+		morAcc, 
+		PeerNode{},
+	)
+
+	// 15 min timeout for node
+	ctx, closeNode := context.WithTimeout(context.Background(), time.Minute * 15)
+
+	// peer node who signed tx
+	morPeerNode := NewPeerNode(
+		DefaultIP, 
+		DefaultHttpPort, 
+		false,// not bootstrap 
+		morAcc, // miner account
+		true,// connected to our current node
+	)
+
+	// tx
+	var txValue uint = 5
+
+	var tx = database.NewTx(morAcc, babaAcc, txValue, "")
+
+	// sign tx
+	validSignedTx, err := wallet.SignTxWithKeystoreAccount(
+		tx,
+		morAcc, // signer
+		config.TestKsAccountsPwd,
+		wallet.GetKeystoreDirPath(dataDir),
+	)
+
+	if err != nil {
+		t.Error(err)
+		// return
+	}
+
+	// push to mempool and trigger mining
+	_ = node.AddPendingTX(validSignedTx, morPeerNode)
+
+	go func() {
+		ticker := time.NewTicker(time.Second * miningIntervalSeconds - 3)
+
+		var wasReplayedTxAdded = false
+
+		for range ticker.C {
+			// check if chain is not empty
+			// meaning the previous tx was mined!!
+			if !node.state.LatestBlockHash().IsEmpty() {
+
+				// check: we already added the same tx twice into our mempool and the mining is over
+				if wasReplayedTxAdded && !node.isMining {
+					closeNode()
+					return
+				}
+
+				// if we have not added the same tx , a second time
+				if !wasReplayedTxAdded {
+
+					// submit the same tx again
+					_ = node.AddPendingTX(
+						validSignedTx,
+						morPeerNode,
+					)
+					wasReplayedTxAdded = true
+
+					// wait for replay
+					time.Sleep(time.Second * (miningIntervalSeconds + 3))
+				}
+			}
+		}
+	}()
+
+	_ = node.Run(ctx)
+
+	if node.state.CurrentBlockNumber() != 1 {
+		t.Fatal("mined two blocks! second tx is forged.")
+	}
+
+	if node.state.Balances[babaAcc] != txValue {
+		t.Fatal("forged tx succeeded.")
+	}
+}
+
 func getTestDataDirPath() (string) {
 	// just put data in some temp folder 
 	return filepath.Join(os.TempDir(), "tmc_test")
@@ -491,4 +691,44 @@ func copyKeystoreFilesIntoTestDataDirPath(dataDir string) error {
 	if err != nil { return err }
 
 	return nil
+}
+
+// get dataDir, accounts for test , and init things for test
+// when using this: clean up fs.RemoveDir()
+func setupTestNodeDir() (
+	dataDir string,
+	morAcc database.Account,
+	babaAcc database.Account,
+	err error,
+) {
+	morAcc = database.NewAccount(config.TestKsMortezaAccount)
+	babaAcc = database.NewAccount(config.TestKsBabaYagaAccount)
+
+	dataDir = getTestDataDirPath()
+	if err != nil { 
+		return "", database.Account{}, database.Account{}, err
+	}
+
+	// setup genesis.json file
+	var balances = make(map[database.Account]uint)
+	balances[morAcc] = 1000_000
+	var genesis = database.Genesis{Balances: balances}
+	genesisJson, err := json.Marshal(genesis)
+	if err != nil {
+		return "", database.Account{}, database.Account{}, err
+	}
+
+	// init the data folders
+	err = database.InitDataDirIfNotExists(dataDir, genesisJson)
+	if err != nil {
+		return "", database.Account{}, database.Account{}, err
+	}
+
+	// copy the test keystore files => to /data
+	err = copyKeystoreFilesIntoTestDataDirPath(dataDir)
+	if err != nil {
+		return "", database.Account{}, database.Account{}, err
+	}
+
+	return dataDir, morAcc, babaAcc, nil
 }
