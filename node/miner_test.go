@@ -102,7 +102,7 @@ func generateKey() (
 	// get public key from private
 	pubKey := privKey.PublicKey
 	// get account
-	var account = wallet.GetAccountFromPubKey(pubKey)
+	var account = config.GetAccountFromPubKey(pubKey)
 
 	//  					         miner
 	return privKey, pubKey, account, nil

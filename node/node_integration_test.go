@@ -15,17 +15,6 @@ import (
 	"time"
 )
 
-// basically: we want to have control over the eth_addresses stored inside keystore files
-// fixed account_address => that we store in test keystore file
-const testKsMortezaAccount = "0x3eb92807f1f91a8d4d85bc908c7f86dcddb1df57"
-const testKsBabaYagaAccount = "0x6fdc0d8d15ae6b4ebf45c52fd2aafbcbb19a65c8"
-
-// each eth_address => get a keystore file => with the following files
-const testKsMortezaFile = "test_morteza--3eb92807f1f91a8d4d85bc908c7f86dcddb1df57"
-const testKsBabaYagaFile = "test_babayaga--6fdc0d8d15ae6b4ebf45c52fd2aafbcbb19a65c8"
-// test keystore password
-const testKsAccountsPwd = "security123"
-
 // test node running and shutdown
 func TestNode_Run(t *testing.T) {
 
@@ -56,8 +45,8 @@ func TestNode_Run(t *testing.T) {
 // test node mining feature
 func TestNode_Mining(t *testing.T) {
 	// test accounts addresses
-	var morAcc = database.NewAccount(testKsMortezaAccount)
-	var babaAcc = database.NewAccount(testKsBabaYagaAccount)
+	var morAcc = database.NewAccount(config.TestKsMortezaAccount)
+	var babaAcc = database.NewAccount(config.TestKsBabaYagaAccount)
 
 	//set our genesis.json content for test
 	var genesisBalances = make(map[database.Account]uint) 
@@ -123,7 +112,7 @@ func TestNode_Mining(t *testing.T) {
 		signedTx, err := wallet.SignTxWithKeystoreAccount(
 			tx, 
 			morAcc,// account to sign with 
-			testKsAccountsPwd, // password
+			config.TestKsAccountsPwd, // password
 			wallet.GetKeystoreDirPath(dataDir),
 		)
 		if err != nil {
@@ -150,7 +139,7 @@ func TestNode_Mining(t *testing.T) {
 		signedTx, err := wallet.SignTxWithKeystoreAccount(
 			tx, 
 			morAcc,// account to sign with 
-			testKsAccountsPwd, // password
+			config.TestKsAccountsPwd, // password
 			wallet.GetKeystoreDirPath(dataDir),
 		)
 		if err != nil {
@@ -189,8 +178,8 @@ func TestNode_Mining(t *testing.T) {
 func TestNode_MiningStopsOnNewSyncedBlock(t *testing.T) {
 
 	//accounts
-	var morAcc = database.NewAccount(testKsMortezaAccount)
-	var babaAcc = database.NewAccount(testKsBabaYagaAccount)
+	var morAcc = database.NewAccount(config.TestKsMortezaAccount)
+	var babaAcc = database.NewAccount(config.TestKsBabaYagaAccount)
 
 	var dataDir = getTestDataDirPath()
 	// err := fs.RemoveDir(dataDir)
@@ -268,23 +257,23 @@ func TestNode_MiningStopsOnNewSyncedBlock(t *testing.T) {
 	signedTx1, err := wallet.SignTxWithKeystoreAccount(
 		tx1, 
 		morAcc, 
-		testKsAccountsPwd, 
+		config.TestKsAccountsPwd, 
 		wallet.GetKeystoreDirPath(dataDir),
 	)
 	if err != nil {
 		t.Error(err)
-		return
+		// return
 	}
 
 	signedTx2, err := wallet.SignTxWithKeystoreAccount(
 		tx2, 
 		morAcc, 
-		testKsAccountsPwd, 
+		config.TestKsAccountsPwd, 
 		wallet.GetKeystoreDirPath(dataDir),
 	)
 	if err != nil {
 		t.Error(err)
-		return
+		// return
 	}
 
 	// hash second tx2
@@ -461,9 +450,9 @@ func getTestDataDirPath() (string) {
 // so, we load our own files => into /data dir, for keystore files!
 func copyKeystoreFilesIntoTestDataDirPath(dataDir string) error {
 	// open morteza keystore file
-	mortezaSrcKs, err := os.Open(testKsMortezaFile) 
-	if err != nil { return err }
+	mortezaSrcKs, err := os.Open(config.TestKsMortezaFile) 
 
+	if err != nil { return err }
 	defer mortezaSrcKs.Close()
 
 	// set the dir for keystore
@@ -475,7 +464,7 @@ func copyKeystoreFilesIntoTestDataDirPath(dataDir string) error {
 	if err != nil { return err } 
 
 	// create morteza keystore file
-	mortezaDstKs, err := os.Create(filepath.Join(ksDir, testKsMortezaFile)) 
+	mortezaDstKs, err := os.Create(filepath.Join(ksDir, config.TestKsMortezaFile)) 
 	if err != nil {
 		return err
 	}
@@ -488,12 +477,12 @@ func copyKeystoreFilesIntoTestDataDirPath(dataDir string) error {
 
 	// repeat the same thing for babayaga file
 
-	babayagaSrcKs, err := os.Open(testKsBabaYagaFile) 
+	babayagaSrcKs, err := os.Open(config.TestKsBabaYagaFile) 
 	if err != nil { return err }
 
 	defer babayagaSrcKs.Close()
 
-	babayagaDstKs, err := os.Create(filepath.Join(ksDir, testKsBabaYagaFile))
+	babayagaDstKs, err := os.Create(filepath.Join(ksDir, config.TestKsBabaYagaFile))
 	if err != nil { return err }
 
 	defer babayagaDstKs.Close()

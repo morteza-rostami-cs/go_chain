@@ -352,7 +352,10 @@ func (self *Node) Run(ctx context.Context) error {
 
 	// http routes
 
-	http.HandleFunc(
+	// we create a mux => so in case of running multiple nodes for testing
+	var handler = http.NewServeMux()
+
+	handler.HandleFunc(
 		"/balances/list",
 		// router handler
 		func(res http.ResponseWriter, req *http.Request) {
@@ -360,7 +363,7 @@ func (self *Node) Run(ctx context.Context) error {
 		},
 	)
 
-	http.HandleFunc(
+	handler.HandleFunc(
 		"/tx/add",
 		func(res http.ResponseWriter, req *http.Request) {
 			txAddHandler(res, req, self)
@@ -368,7 +371,7 @@ func (self *Node) Run(ctx context.Context) error {
 	)
 
 	// GET /node/status
-	http.HandleFunc(
+	handler.HandleFunc(
 		endpointStatus,
 		func(res http.ResponseWriter, req *http.Request){
 			// pass the entire node
@@ -377,7 +380,7 @@ func (self *Node) Run(ctx context.Context) error {
 	)
 
 	// Get /node/sync
-	http.HandleFunc(
+	handler.HandleFunc(
 		endpointSync,
 		func(res http.ResponseWriter, req *http.Request) {
 			syncHandler(res, req, self.dataDir)
@@ -385,7 +388,7 @@ func (self *Node) Run(ctx context.Context) error {
 	)
 
 	// GET /node/sync?ip=
-	http.HandleFunc(
+	handler.HandleFunc(
 		endpointAddPeer,
 		func(res http.ResponseWriter, req *http.Request){
 			addPeerHandler(res, req, self)
@@ -401,6 +404,7 @@ func (self *Node) Run(ctx context.Context) error {
 	// get a http server pointer
 	server := &http.Server{
 		Addr: fmt.Sprintf(":%d", self.info.Port),
+		Handler: handler,
 	}
 
 	// this is our control, over shutting down of the http server.

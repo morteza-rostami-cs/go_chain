@@ -2,7 +2,6 @@ package wallet
 
 import (
 	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/sha256"
 	"fmt"
 	"go_chain/database"
@@ -180,15 +179,3 @@ Last 20 bytes
 Ethereum Address
 */
 // public_key => account_address
-
-// pass public key and get => eth account address
-func GetAccountFromPubKey(pubKey ecdsa.PublicKey) common.Address {
-	// convert to [65]byte
-	var pubKeyBytes = elliptic.Marshal(crypto.S256(), pubKey.X, pubKey.Y)
-	// skip the prefix 0x04 
-	var pubKeyBytesHash = crypto.Keccak256(pubKeyBytes[1:])
-	// account address => is the last 20 bytes -- take bytes 12..32 (the last 20)
-	var account = common.BytesToAddress(pubKeyBytesHash[:12])
-
-	return account
-}

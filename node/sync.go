@@ -54,6 +54,12 @@ func (self *Node) doSync() {
 
 	// initially we only have 8081
 	for _, peer := range self.knownPeers {
+
+		// skip empty ip
+		if peer.IP == "" {
+			continue
+		}
+
 		// skip self
 		// do not register with yourself
 		// do not pull peers from yourself
