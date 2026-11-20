@@ -61,7 +61,7 @@ func TestNode_Mining(t *testing.T) {
 	// test /data folder
 	var dataDir = getTestDataDirPath() 
 	// err = fs.RemoveDir(dataDir)
-	if err != nil { t.Fatal(err) }
+	// if err != nil { t.Fatal(err) }
 
 	// initialize data folders and write genesis.json and so on
 	err = database.InitDataDirIfNotExists(dataDir, genesisJson)
@@ -281,7 +281,7 @@ func TestNode_MiningStopsOnNewSyncedBlock(t *testing.T) {
 
 	var pBlock = NewPendingBlock(
 		database.Hash{},
-		0,// block_number
+		1,// block_number
 		morAcc, // miner
 		[]database.SignedTx{signedTx1},
 	)

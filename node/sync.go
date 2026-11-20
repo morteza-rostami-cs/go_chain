@@ -205,7 +205,7 @@ func (self *Node) syncBlocks(
 	// check if both nodes have the genesis block
 	// peer height = 1 && current_node.state.latestBlockHash != empty, meaning: already has genesisBlock or more
 	if status.Number == 1 && !self.state.LatestBlockHash().IsEmpty() {
-		fmt.Println("\n == i have genesis, thanks! == \n")
+		fmt.Println("\n == i have genesis, thanks! ==")
 		return nil
 	}
 

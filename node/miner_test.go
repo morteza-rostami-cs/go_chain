@@ -153,7 +153,7 @@ func TestMineWithTimeout(t *testing.T) {
 	minerPrivKey,_, miner, err := generateKey()
 	if err != nil {
 		t.Fatal(err)
-	}  
+	}
 
 	// sign txs and make a pending block
 	pendingBlock, err := createRandomPendingBlock(minerPrivKey, miner)

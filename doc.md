@@ -108,6 +108,9 @@ go build ./...
 # to only run a specific test, not only the ones that passes regex
 go test -v -run '^TestNode_Mining$' ./node/
 
+# increase go test timeout of 10 min
+go test -timeout 30m ./...
+
 rm -rf .tmc-node .tmc-node2/ .tmc-node3/
 
 tmc migrate --datadir=./data --port=8081 --ip=127.0.0.1 --miner=morteza
@@ -124,6 +127,9 @@ ssh -T git@github.com
 
 tmc wallet pk-print --datadir=./data --keystore=./data/keystore/UTC--2026-11-18T13-05-55.791906653Z--eb698b87894d918666f05465bdca59795ef9b5bb
 
+# real accounts
+0x69703F0911FF82b622EC3695F053d8860E21D7f5
 
+0x3D9C09d3888d1833AC35E1E284C6850Ea59FB1f5
 
 ```
