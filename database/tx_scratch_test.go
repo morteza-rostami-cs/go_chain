@@ -13,6 +13,7 @@ func TestTxHashStableAndDistinct(t *testing.T) {
 		NewAccount(config.MortezaAccount),
 		NewAccount(config.BabaYagaAccount),
 		5,
+		1,//nonce
 		"",
 	)
 
@@ -33,6 +34,7 @@ func TestTxHashStableAndDistinct(t *testing.T) {
 		NewAccount(config.MortezaAccount),
 		NewAccount(config.BabaYagaAccount),
 		5,
+		2,
 		"",
 	)
 

@@ -60,8 +60,8 @@ func createRandomPendingBlock(
 	var babayagaAcc = database.NewAccount(config.BabaYagaAccount)
 
 	// txs
-	var tx1 = database.NewTx(mortezaAcc, babayagaAcc, 3, "")
-	var tx2 = database.NewTx(mortezaAcc, mortezaAcc, 700, "reward")
+	var tx1 = database.NewTx(mortezaAcc, babayagaAcc, 3, 1, "")
+	var tx2 = database.NewTx(mortezaAcc, mortezaAcc, 700, 2, "reward")
 
 	// sign txs
 	signedTx1, err := wallet.SignTx(tx1, minerPrivKey)

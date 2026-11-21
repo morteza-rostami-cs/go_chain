@@ -51,7 +51,11 @@ func SignTxWithKeystoreAccount(
 ) (database.SignedTx, error) {
 
 	// load and config
-	ksManager := keystore.NewKeyStore(keystoreDir, keystore.StandardScryptN, keystore.StandardScryptP)
+	ksManager := keystore.NewKeyStore(
+		keystoreDir, 
+		keystore.StandardScryptN, 
+		keystore.StandardScryptP,
+	)
 
 	// keystore can hold multiple accounts => find the one we want to sign with
 	ksAccount, err := ksManager.Find(accounts.Account{Address: acc})
@@ -82,7 +86,7 @@ func SignTxWithKeystoreAccount(
 	if err != nil {
 		return database.SignedTx{}, err
 	}
-
+	
 	return signedTx, nil
 }
 

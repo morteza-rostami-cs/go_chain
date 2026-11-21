@@ -92,12 +92,37 @@ type Tx struct{
 	To Account `json:"to"`
 	// token in transfer
 	Value uint `json:"value"`
+	// each account.tx has a nonce, we increment this for each tx
+	Nonce	uint `json:"nonce"`
 	// meta data
 	Data string `json:"data"`
 
 	// add timestamp to tx, so it's hash will be a unique identifier, so we can differentiate between txs, when archiving and so on (for:: transaction_hash)
 	Time uint64	`json:"time"`
 }
+// create new transaction
+func NewTx(
+	from Account,
+	to Account,
+	value uint,
+	nonce	uint,
+	data string,
+) Tx {
+	// we are passing values in a positional way, into struct
+	return Tx{
+		From: from, 
+		To: to, 
+		Value: value,
+		Nonce: nonce,
+		Data: data,
+		// this does not capture small time difference
+		// Time: uint64(time.Now().Unix()),
+
+		// we will use nano seconds
+		Time: uint64(time.Now().UnixNano()),
+	}
+}
+
 //methods
 func (self Tx) IsReward() bool {
 	// check if transaction has a bonus or reward
@@ -118,25 +143,4 @@ func (self Tx) Hash() (Hash, error) {
 
 	// hash json bytes of our tx
 	return sha256.Sum256(txJson), nil
-}
-
-// create new transaction
-func NewTx(
-	from Account,
-	to Account,
-	value uint,
-	data string,
-) Tx {
-	// we are passing values in a positional way, into struct
-	return Tx{
-		From: from, 
-		To: to, 
-		Value: value, 
-		Data: data,
-		// this does not capture small time difference
-		// Time: uint64(time.Now().Unix()),
-
-		// we will use nano seconds
-		Time: uint64(time.Now().UnixNano()),
-	}
 }

@@ -232,12 +232,13 @@ func (self *Node) minePendingTXs(ctx context.Context) error {
 	minedBlock, err := Mine(ctx, blockToMine)
 	if err != nil { return err }
 
+	// remove from pool and archive
+	// call this before AddBlock => cause, tx/block validation happens in there, eg: if tx.nonce is invalid, remove txs from pool => otherwise it re-triggers miner again!!
+	self.removeMinedPendingTXs(minedBlock)
+
 	// add mined block to block.db
 	_, err = self.state.AddBlock(minedBlock)
 	if err != nil { return err }
-
-	// remove from pool and archive
-	self.removeMinedPendingTXs(minedBlock)
 
 	return nil
 }

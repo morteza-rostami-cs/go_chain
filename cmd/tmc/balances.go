@@ -63,6 +63,14 @@ func balancesListCmd() *cobra.Command {
 			for account, balance := range state.Balances {
 				fmt.Printf("%s: %d\n", account.String(), balance)
 			}
+
+			fmt.Println("=======")
+			fmt.Println("accounts nonces: ")
+			fmt.Println("=======")
+			fmt.Println("")
+			for acc, nonce := range state.Account2Nonce {
+				fmt.Printf("%s: %d\n", acc, nonce)
+			}
 		},
 	}
 

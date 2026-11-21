@@ -41,7 +41,7 @@ func TestSignTxWithKeystoreAccount(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	tx := database.NewTx(morteza, baba, 100, "")
+	tx := database.NewTx(morteza, baba, 100, 1, "")
 	fmt.Println(tx.From)
 	signedTx, err := SignTxWithKeystoreAccount(
 		tx, 
@@ -82,7 +82,7 @@ func TestSignForgedTxWithKeystoreAccount(t *testing.T) {
 	if err != nil { t.Fatal(err) }
 
 	// tx is From = Babayaga => but is signed by the hacker
-	var forgedTx = database.NewTx(baba, hacker, 100, "")
+	var forgedTx = database.NewTx(baba, hacker, 100, 1, "")
 	signedTx, err := SignTxWithKeystoreAccount(
 		forgedTx,
 		hacker, // signer

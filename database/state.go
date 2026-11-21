@@ -14,6 +14,8 @@ import (
 
 type State struct{
 	Balances	map[Account]uint
+	// a map of: account:nonce_value, keep track of number of txs on each account => returns: 0 for fresh account, with no entry.
+	Account2Nonce	map[Account]uint
 	dbFile	*os.File
 	// store the whole last block, cause we need it to do: Block.Number + 1, when creating a new block
 	latestBlock	*Block
@@ -56,6 +58,13 @@ func (self *State) NextBlockNumber() uint64 {
 func (self *State) GetChainLen() uint64 {
 	// block number also is the length, cause: we start form 1, 2, 3
 	return self.CurrentBlockNumber()
+}
+
+// get current account nonce
+
+// get the next account.nonce
+func (self *State) GetNextAccountNonce(account Account) uint {
+	return self.Account2Nonce[account] + 1
 }
 
 // apply a path of blocks, txs => to balances and mempool
@@ -109,6 +118,7 @@ func (self *State) AddBlock(b Block) (Hash, error) {
 	// set the state to pending state
 	// if: blocks successfully persist => set the main state
 	self.Balances = pendingState.Balances
+	self.Account2Nonce = pendingState.Account2Nonce
 	self.latestBlockHash = blockHash
 	
 	lastBlock := b // copy block
@@ -128,10 +138,16 @@ func (self *State) copy() State {
 	s.latestBlock = self.latestBlock// not copy, is a pointer
 	s.latestBlockHash = self.latestBlockHash
 	s.Balances = make(map[Account]uint)
+	s.Account2Nonce = make(map[Account]uint)
 
 	//copy balances
 	for acc, balance := range self.Balances{
 		s.Balances[acc] = balance
+	}
+
+	// copy account nonce
+	for acc, nonce := range self.Account2Nonce {
+		s.Account2Nonce[acc] = nonce
 	}
 
 	return s
@@ -206,11 +222,6 @@ func applyTXs(txs []SignedTx, s *State) error {
 
 // apply each transaction to state.Balances
 func applyTx(tx SignedTx, state *State) error {
-	// reward tx
-	// if tx.IsReward() {
-	// 	state.Balances[tx.To] += tx.Value
-	// 	return nil
-	// }
 
 	// account coming from sig and publicKey => must be the same as tx.From
 	// so: for sig to give us same account as tx.From => they need to have the private_key
@@ -220,6 +231,18 @@ func applyTx(tx SignedTx, state *State) error {
 	// fake sender, or not a valid private_key sining
 	if (!ok) {
 		return fmt.Errorf("wrong Tx, sender %s is forged!", tx.From)
+	}
+
+	// check tx.nonce against: state next account nonce
+	// prevents => replay attack!!
+	expectedNonce := state.GetNextAccountNonce(tx.From)
+	if tx.Nonce != expectedNonce {
+		return fmt.Errorf(
+			"wrong tx. for sender %s, the next nonce must be %d, not %d",
+			tx.From.String(),
+			expectedNonce,
+			tx.Nonce,
+		)
 	}
 
 	// check for insufficient balance
@@ -236,6 +259,10 @@ func applyTx(tx SignedTx, state *State) error {
 	// normal tx
 	state.Balances[tx.From] -= tx.Value
 	state.Balances[tx.To] += tx.Value
+
+	// if valid tx
+	// set the next state account nonce (basically increment state.account.nonce)
+	state.Account2Nonce[tx.From] = tx.Nonce
 
 	return nil
 }
@@ -292,6 +319,7 @@ func NewStateFromDisk(dataDir string) (*State, error) {
 	// pointer to empty state
 	state := &State{
 		Balances: balances,// gen.Balances
+		Account2Nonce: make(map[Account]uint),
 		dbFile: dbFile,// pointer to db file
 
 		// book:: wants this

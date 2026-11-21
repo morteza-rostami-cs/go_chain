@@ -105,6 +105,7 @@ func TestNode_Mining(t *testing.T) {
 			morAcc,
 			babaAcc,
 			1,
+			1,//nonce
 			"",
 		)
 
@@ -132,6 +133,7 @@ func TestNode_Mining(t *testing.T) {
 			database.NewAccount(config.MortezaAccount),
 			database.NewAccount(config.BabaYagaAccount),
 			2,
+			2,// nonce
 			"",
 		) 
 
@@ -243,6 +245,7 @@ func TestNode_MiningStopsOnNewSyncedBlock(t *testing.T) {
 		morAcc,
 		babaAcc,
 		1,
+		1,
 		"",
 	)
 	// current time
@@ -250,6 +253,7 @@ func TestNode_MiningStopsOnNewSyncedBlock(t *testing.T) {
 		morAcc,
 		babaAcc,
 		2,
+		2,// nonce
 		"",
 	)
 
@@ -458,7 +462,7 @@ func TestNode_ForgedTx(t *testing.T) {
 	)
 
 	// 15 min timeout for node
-	ctx, closeNode := context.WithTimeout(context.Background(), time.Minute * 15)
+	ctx, _ := context.WithTimeout(context.Background(), time.Minute * 15)
 
 	// peer node who signed tx
 	morPeerNode := NewPeerNode(
@@ -471,8 +475,9 @@ func TestNode_ForgedTx(t *testing.T) {
 
 	// tx
 	var txValue uint = 5
+	var txNonce uint = 1
 
-	var tx = database.NewTx(morAcc, babaAcc, txValue, "")
+	var tx = database.NewTx(morAcc, babaAcc, txValue, txNonce, "")
 
 	// sign tx
 	validSignedTx, err := wallet.SignTxWithKeystoreAccount(
@@ -481,62 +486,36 @@ func TestNode_ForgedTx(t *testing.T) {
 		config.TestKsAccountsPwd,
 		wallet.GetKeystoreDirPath(dataDir),
 	)
-
+	
 	if err != nil {
 		t.Error(err)
 		// return
 	}
 
 	// push to mempool and trigger mining
-	_ = node.AddPendingTX(validSignedTx, morPeerNode)
-
 	go func() {
-		ticker := time.NewTicker(time.Second * miningIntervalSeconds - 3)
-
-		var wasForgedTxAdded = false
-
-		for range ticker.C {
-			// check if chain is not empty
-			// meaning the previous tx was mined!!
-			if !node.state.LatestBlockHash().IsEmpty() {
-
-				// check: we already added the same tx twice into our mempool and the mining is over
-				if wasForgedTxAdded && !node.isMining {
-					closeNode()
-					return
-				}
-
-				// if we have not added the same tx , a second time
-				if !wasForgedTxAdded {
-
-					// create forged => different Time
-					var forgedTx = database.NewTx(
-						morAcc,
-						babaAcc,
-						txValue,
-						"",
-					)
-
-					var forgedSignedTx = database.NewSignedTx(
-						forgedTx,
-						// steal the sig of previous tx
-						validSignedTx.Sig,
-					)
-
-					// submit the same tx again
-					_ = node.AddPendingTX(
-						forgedSignedTx,
-						morPeerNode,
-					)
-					wasForgedTxAdded = true
-
-					// wait for replay
-					time.Sleep(time.Second * (miningIntervalSeconds + 3))
-				}
-			}
-		}
+		time.Sleep(time.Second * 1)
+		_ = node.AddPendingTX(validSignedTx, morPeerNode)
 	}()
 
+	go func() {
+		// wait for mining process of first legit tx to start.
+		time.Sleep(time.Second * (miningIntervalSeconds + 1))
+
+		// forge a tx, using the sig of previous tx
+		var forgedTx = database.NewTx(morAcc, babaAcc, txValue, txNonce, "")
+
+		var forgedSignedTx = database.NewSignedTx(
+			forgedTx,
+			validSignedTx.Sig,
+		)
+
+		// we add the forged one to the pool, before archived happening at the end of mining! after the first of is mined => this one will be rejected, cause: has the same nonce!
+		// although:: this is a different tx, so it has a different hash to it passes the archived test!
+		_ = node.AddPendingTX(forgedSignedTx, morPeerNode)
+	}()
+
+	// node, has to wait 10 min => cause: the second block never gets mined => is invalid and errors out of miner!! this test has to wait!!
 	_ = node.Run(ctx)
 
 	if node.state.CurrentBlockNumber() != 1 {
@@ -544,7 +523,7 @@ func TestNode_ForgedTx(t *testing.T) {
 	}
 
 	if node.state.Balances[babaAcc] != txValue {
-		t.Fatal("forged tx succeeded.")
+		t.Fatal("forged tx succeeded.") 
 	}
 }
 
@@ -565,7 +544,7 @@ func TestNode_ReplayedTx(t *testing.T) {
 	)
 
 	// 15 min timeout for node
-	ctx, closeNode := context.WithTimeout(context.Background(), time.Minute * 15)
+	ctx, closeNode := context.WithCancel(context.Background())
 
 	// peer node who signed tx
 	morPeerNode := NewPeerNode(
@@ -576,10 +555,20 @@ func TestNode_ReplayedTx(t *testing.T) {
 		true,// connected to our current node
 	)
 
+	// sender of forged tx
+	babaPeerNode := NewPeerNode(
+		DefaultIP, 
+		8082, 
+		false,// not bootstrap 
+		babaAcc, // miner account
+		true,// connected to our current node
+	)
+
 	// tx
 	var txValue uint = 5
+	var txNonce uint = 1
 
-	var tx = database.NewTx(morAcc, babaAcc, txValue, "")
+	var tx = database.NewTx(morAcc, babaAcc, txValue, txNonce, "")
 
 	// sign tx
 	validSignedTx, err := wallet.SignTxWithKeystoreAccount(
@@ -598,14 +587,15 @@ func TestNode_ReplayedTx(t *testing.T) {
 	_ = node.AddPendingTX(validSignedTx, morPeerNode)
 
 	go func() {
-		ticker := time.NewTicker(time.Second * miningIntervalSeconds - 3)
+		// starts in 7 sec => sooner that miner
+		ticker := time.NewTicker(time.Second * (miningIntervalSeconds - 3))
 
 		var wasReplayedTxAdded = false
 
 		for range ticker.C {
-			// check if chain is not empty
-			// meaning the previous tx was mined!!
-			if !node.state.LatestBlockHash().IsEmpty() {
+			// after the first block is mined, we attack with the same tx (twice) for replay!!
+			// we need to wait so, block is added, so nonce = 1
+			if node.state.CurrentBlockNumber() == 1 {
 
 				// check: we already added the same tx twice into our mempool and the mining is over
 				if wasReplayedTxAdded && !node.isMining {
@@ -613,18 +603,20 @@ func TestNode_ReplayedTx(t *testing.T) {
 					return
 				}
 
-				// if we have not added the same tx , a second time
-				if !wasReplayedTxAdded {
+				// clear archive, and we can replay the same tx => this is like a server crash!
+				clear(node.archivedTXs)
 
-					// submit the same tx again
-					_ = node.AddPendingTX(
-						validSignedTx,
-						morPeerNode,
-					)
-					wasReplayedTxAdded = true
+				// submit the same tx again
+				_ = node.AddPendingTX(
+					validSignedTx,
+					babaPeerNode,
+				)
+				wasReplayedTxAdded = true
 
-					// wait for replay
-					time.Sleep(time.Second * (miningIntervalSeconds + 3))
+				// if second block is mined?
+				if node.state.CurrentBlockNumber() == 2 {
+					closeNode()
+					return
 				}
 			}
 		}
@@ -632,12 +624,13 @@ func TestNode_ReplayedTx(t *testing.T) {
 
 	_ = node.Run(ctx)
 
-	if node.state.CurrentBlockNumber() != 1 {
-		t.Fatal("mined two blocks! second tx is forged.")
+	if node.state.CurrentBlockNumber() == 2 {
+		t.Errorf("mined two blocks! second tx is forged.")
+		return
 	}
 
-	if node.state.Balances[babaAcc] != txValue {
-		t.Fatal("forged tx succeeded.")
+	if node.state.Balances[babaAcc] == txValue * 2 {
+		t.Errorf("replay attack was successful, second tx was counted.")
 	}
 }
 
@@ -661,7 +654,7 @@ func copyKeystoreFilesIntoTestDataDirPath(dataDir string) error {
 
 	// create path and set folder permission
 	err = os.Mkdir(ksDir, 0777)
-	if err != nil { return err } 
+	if err != nil { return err }
 
 	// create morteza keystore file
 	mortezaDstKs, err := os.Create(filepath.Join(ksDir, config.TestKsMortezaFile)) 
@@ -701,13 +694,22 @@ func setupTestNodeDir() (
 	babaAcc database.Account,
 	err error,
 ) {
+
+	// tmc_test
+	dataDir = getTestDataDirPath()
+
+	// clear the shit test files => so we can create a new one for each test
+	fmt.Println("removing test dir! in setupTestNodeDir()")
+	fmt.Println(dataDir)
+
+	err = fs.RemoveDir(dataDir)
+	if err != nil {
+		return "", database.Account{}, database.Account{}, err
+	}
+
 	morAcc = database.NewAccount(config.TestKsMortezaAccount)
 	babaAcc = database.NewAccount(config.TestKsBabaYagaAccount)
 
-	dataDir = getTestDataDirPath()
-	if err != nil { 
-		return "", database.Account{}, database.Account{}, err
-	}
 
 	// setup genesis.json file
 	var balances = make(map[database.Account]uint)

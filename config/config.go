@@ -31,6 +31,7 @@ func GetAccountFromPubKey(pubKey ecdsa.PublicKey) common.Address {
 // basically: we want to have control over the eth_addresses stored inside keystore files
 // fixed account_address => that we store in test keystore file
 const TestKsMortezaAccount = "0x3eb92807f1f91a8d4d85bc908c7f86dcddb1df57"
+
 const TestKsBabaYagaAccount = "0x6fdc0d8d15ae6b4ebf45c52fd2aafbcbb19a65c8"
 
 // each eth_address => get a keystore file => with the following files

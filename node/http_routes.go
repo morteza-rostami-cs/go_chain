@@ -125,11 +125,16 @@ func txAddHandler(
 		return
 	}
 
+	//get the next nonce =>for tx.From account (sender)
+	// on eth => client asks the node for the next nonce or track it locally!!.
+	// race condition:: if both client req comes at the same time => both get the same nonce => and include tx in pool!!
+	var nonce = node.state.GetNextAccountNonce(from)
 	// create tx
 	tx := database.NewTx(
 		from,
 		database.NewAccount(request.To),
 		request.Value,
+		nonce,
 		request.Data,
 	)
 
@@ -160,7 +165,6 @@ func statusHandler(
 	req *http.Request, 
 	node *Node,
 ){
-
 	// check for the latest block, because: if block.db is empty, then: sate.LatestBlock() returns: nil
 	response := StatusRes{
 		Hash: node.state.LatestBlockHash(),
