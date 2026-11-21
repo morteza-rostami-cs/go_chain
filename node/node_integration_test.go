@@ -448,7 +448,7 @@ func TestNode_MiningStopsOnNewSyncedBlock(t *testing.T) {
 // attack:: hacker sends a valid sig + different tx
 func TestNode_ForgedTx(t *testing.T) {
 	// setup test env
-	dataDir, morAcc, babaAcc, err := setupTestNodeDir()
+	dataDir, morAcc, babaAcc, err := setupTestNodeDir(1000_000)
 	if err != nil { t.Error(err) }
 
 	defer fs.RemoveDir(dataDir)// remove the test data dir at the end
@@ -530,7 +530,7 @@ func TestNode_ForgedTx(t *testing.T) {
 // attack:: hacker re-submit the same tx twice
 func TestNode_ReplayedTx(t *testing.T) {
 	// setup test env
-	dataDir, morAcc, babaAcc, err := setupTestNodeDir()
+	dataDir, morAcc, babaAcc, err := setupTestNodeDir(1000_000)
 	if err != nil { t.Error(err) }
 
 	defer fs.RemoveDir(dataDir)// remove the test data dir at the end
@@ -634,6 +634,121 @@ func TestNode_ReplayedTx(t *testing.T) {
 	}
 }
 
+// test: if you spam with multiple txs => you have to pay txFee
+// so: you do not do that that shit, now that we are applying txFee to each tx
+func TestNode_MiningSpamTransactions(t *testing.T){
+	// balances, from, to, miner
+	var morBalance = uint(1000)
+	var babaBalance = uint(0)
+	var minerBalance = uint(0)
+
+	// get keys => key.address = eth miner address
+	minerKey, err := wallet.NewRandomKey()
+	if err != nil { t.Fatal(err) }
+
+	var miner = minerKey.Address// eth address
+
+	// dataDir, account 1, account2, err
+	dataDir, morAcc, babaAcc, err := setupTestNodeDir(morBalance)
+	if err != nil { t.Fatal(err) }
+
+	// close test folder
+	defer fs.RemoveDir(dataDir)
+
+	// make a node
+	var node = New(
+		dataDir, 
+		DefaultIP, 
+		DefaultHttpPort, 
+		miner, // real account, gets gas 
+		PeerNode{},//we do not send thing between nodes
+	)
+	ctx, closeNode := context.WithCancel(context.Background())
+
+	// peer who add txs
+	var minerPeerNode = NewPeerNode(DefaultIP, DefaultHttpPort, false, miner, true)
+
+	// transaction value
+	var txValue = uint(200)
+
+	// max tx count to send
+	var txCount = uint(4)
+
+	// sign and add 4 tx to the pool
+	// i = uint => cause: nonce has to be uint
+	for i := uint(1); i <= txCount; i++ {
+		time.Sleep(time.Second)
+		// 1, 2, 3 => each tx has a different nonce
+		var txNonce = i
+		var tx = database.NewTx(morAcc, babaAcc, txValue, txNonce, "")
+
+		signedTx, err := wallet.SignTxWithKeystoreAccount(tx, morAcc, config.TestKsAccountsPwd, wallet.GetKeystoreDirPath(dataDir))
+		if err != nil { t.Fatal(err) } 
+
+		// add SignedTx
+		_ = node.AddPendingTX(signedTx, minerPeerNode)
+	}
+
+	// so, we add txs at the same time, so they should be mined together
+	// now: we just have to check for any mined block, every 10 sec
+	go func() {
+		ticker := time.NewTicker(10 * time.Second)
+
+		for range ticker.C {
+			if !node.state.LatestBlockHash().IsEmpty() {
+				closeNode()
+				return
+			}
+		}
+	}()
+
+	_ = node.Run(ctx)
+
+	// check expected balances for mor, baba and miner
+
+	// 4 tx => 4 times gasFee payment
+	expectedMorBalance := morBalance - (txCount * txValue) - (txCount * database.TxFee)
+
+	// baba only gets the real value
+	expectedBabaBalance := babaBalance + (txCount * txValue)
+
+	// miner gets the gasFee + block reward
+	expectedMinerBalance := minerBalance + database.BlockReward + (txCount * database.TxFee)
+
+	if node.state.Balances[morAcc] != expectedMorBalance {
+		t.Errorf(
+			"mor balance is not correct. expected %d and got %d",
+			expectedMorBalance,
+			node.state.Balances[morAcc],
+		)
+		return
+	}
+
+	// check babayaga for receiving tx.value
+	if node.state.Balances[babaAcc] != expectedBabaBalance {
+		t.Errorf(
+			"baba balance is wrong. expected %d, got %d",
+			expectedBabaBalance,
+			node.state.Balances[babaAcc],
+		)
+	} 
+
+	// check miner balance, after mining 4 txs
+	if node.state.Balances[miner] != expectedMinerBalance {
+		t.Errorf(
+			"miner balance is wrong. expected %d, got %d",
+			expectedMinerBalance,
+			node.state.Balances[miner],
+		)
+		return
+	}
+
+	t.Logf("mor final balance: %d TMC", node.state.Balances[morAcc])
+	t.Logf("baba final balance: %d TMC", node.state.Balances[babaAcc])
+	t.Logf("miner final balance: %d TMC", node.state.Balances[miner])
+}
+
+
 func getTestDataDirPath() (string) {
 	// just put data in some temp folder 
 	return filepath.Join(os.TempDir(), "tmc_test")
@@ -688,7 +803,8 @@ func copyKeystoreFilesIntoTestDataDirPath(dataDir string) error {
 
 // get dataDir, accounts for test , and init things for test
 // when using this: clean up fs.RemoveDir()
-func setupTestNodeDir() (
+// send balance for testing gas fee
+func setupTestNodeDir(morBalance uint) (
 	dataDir string,
 	morAcc database.Account,
 	babaAcc database.Account,
@@ -710,10 +826,10 @@ func setupTestNodeDir() (
 	morAcc = database.NewAccount(config.TestKsMortezaAccount)
 	babaAcc = database.NewAccount(config.TestKsBabaYagaAccount)
 
-
 	// setup genesis.json file
 	var balances = make(map[database.Account]uint)
-	balances[morAcc] = 1000_000
+	// balances[morAcc] = 1000_000
+	balances[morAcc] = morBalance
 	var genesis = database.Genesis{Balances: balances}
 	genesisJson, err := json.Marshal(genesis)
 	if err != nil {

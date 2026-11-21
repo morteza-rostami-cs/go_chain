@@ -2,6 +2,7 @@ package wallet
 
 import (
 	"crypto/ecdsa"
+	"crypto/rand"
 	"crypto/sha256"
 	"fmt"
 	"go_chain/database"
@@ -14,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/google/uuid"
 )
 
 // sub dir name, for storing encrypted keys
@@ -183,3 +185,21 @@ Last 20 bytes
 Ethereum Address
 */
 // public_key => account_address
+
+// this func is for generating a random miner account for testing
+// so: key.address => gives you a real eth address, derived from a private key 
+func NewRandomKey() (*keystore.Key, error) {
+	privateKeyECDSA, err := ecdsa.GenerateKey(crypto.S256(), rand.Reader)
+	if err != nil {
+		return nil, err
+	}
+
+	id, _ := uuid.NewRandom()
+	// this has eth address => key.address
+	key := &keystore.Key{
+		Id:	id,
+		Address:	crypto.PubkeyToAddress(privateKeyECDSA.PublicKey),
+		PrivateKey: privateKeyECDSA,
+	}
+	return key, nil
+}

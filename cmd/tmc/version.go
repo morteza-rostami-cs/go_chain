@@ -8,7 +8,7 @@ import (
 
 // versioning info constants
 const Major = "1"
-const Minor = "0"
+const Minor = "3"
 const Fix = "0"
 // description of this release
 // const Verbal = "TX Add && Balances List"
@@ -21,7 +21,8 @@ const Fix = "0"
 // const Verbal = "PoW Reward"
 // const Verbal = "Crypto Authentication"
 // const Verbal = "Digital Signatures"
-const Verbal = "Decentralized Auth"
+// const Verbal = "Decentralized Auth"
+const Verbal = "TX Gas"
 
 // a command should be a cobra.Command struct type
 

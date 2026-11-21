@@ -12,6 +12,11 @@ import (
 	"os"
 )
 
+// a flat rate, gasFee => per tx
+// sender pays: txValue + txFee
+// miner receives => txFee
+const TxFee = uint(50)
+
 type State struct{
 	Balances	map[Account]uint
 	// a map of: account:nonce_value, keep track of number of txs on each account => returns: 0 for fresh account, with no entry.
@@ -199,6 +204,12 @@ func applyBlock(b Block, s *State) error {
 	// after block is mined and applied
 	// give reward to the miner
 	s.Balances[b.Header.Miner] += BlockReward
+
+	// after mining!
+	// applyTx(), already removed fee from sender account, so here we add 50 for each tx to the miner
+	// apply txFee per tx
+	s.Balances[b.Header.Miner] +=  uint(len(b.TXs)) * TxFee
+
 	return nil
 }
 
@@ -245,20 +256,22 @@ func applyTx(tx SignedTx, state *State) error {
 		)
 	}
 
-	// check for insufficient balance
-	if tx.Value > state.Balances[tx.From] {
-		fmt.Println("insufficient balance")
+	// apply txFee to tx cost
+	var txCost = tx.Value + TxFee
+
+	// now check the account.balance
+	if txCost > state.Balances[tx.From] {
 		return fmt.Errorf(
-			"wrong TX. sender '%s' balance is %d TMC. Tx cost is %d TMC.",
+			"insufficient balance. sender %s balance is %d TMC. Tx cost is %d TMC",
 			tx.From.String(),
 			state.Balances[tx.From],
-			tx.Value,
+			txCost,
 		)
 	}
 
 	// normal tx
-	state.Balances[tx.From] -= tx.Value
-	state.Balances[tx.To] += tx.Value
+	state.Balances[tx.From] -= txCost // apply to cost
+	state.Balances[tx.To] += tx.Value// send the value
 
 	// if valid tx
 	// set the next state account nonce (basically increment state.account.nonce)
